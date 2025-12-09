@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-# ai_data_entry_app.py
+# AI Data Entry Employee (Tkinter Version - Works 100% in EXE)
 
 import re
-from datetime import datetime
 import os
 import pandas as pd
-from dateutil import parser as dateparser
-import PySimpleGUI as sg
+from datetime import datetime
+from tkinter import *
+from tkinter import messagebox, filedialog
 
 FIELDS = [
     "Date", "Name", "Age", "Gender", "Phone", "Email", "Street", "City",
@@ -17,55 +17,30 @@ FIELDS = [
 DEFAULT_SAVE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "AI_Data_Entries")
 os.makedirs(DEFAULT_SAVE_DIR, exist_ok=True)
 
-def find_phone(text):
-    m = re.search(r"(?:\+?\d{1,3}[\s\-]?)?(\d{10}|\d{9}|\d{8})", text)
-    return m.group(0).strip() if m else ""
-
-def find_email(text):
-    m = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", text)
-    return m.group(0).strip() if m else ""
-
-def find_amount(text):
-    m = re.search(r"(?:₹|Rs|INR|\$)?\s*([0-9]{1,3}(?:[,\.][0-9]{3})*(?:\.\d+)?|[0-9]+(?:\.\d+)?)", text)
-    return m.group(1).replace(",", "") if m else ""
-
-def find_name(text):
-    m = re.search(r"(?:Name|name)[:\-\s]\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)", text)
-    if m:
-        return m.group(1).strip()
-    m2 = re.search(r"^([A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2})", text.strip())
+def find_phone(t):  return (m.group(0).strip() if (m := re.search(r"(?:\+?\d{1,3}[\s\-]?)?(\d{10}|\d{9}|\d{8})", t)) else "")
+def find_email(t):  return (m.group(0).strip() if (m := re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", t)) else "")
+def find_amount(t): return (m.group(1).replace(",", "") if (m := re.search(r"(?:₹|Rs|INR|\$)?\s*([0-9]{1,3}(?:[,\.][0-9]{3})*(?:\.\d+)?|[0-9]+(?:\.\d+)?)", t)) else "")
+def find_name(t):
+    m = re.search(r"(?:Name|name)[:\-\s]\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)", t)
+    if m: return m.group(1).strip()
+    m2 = re.search(r"^([A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2})", t.strip())
     return m2.group(1).strip() if m2 else ""
-
-def find_age(text):
-    m = re.search(r"\b(Age|age)[:\-\s]?\s*(\d{1,3})\b", text)
-    if m:
-        return m.group(2)
-    m2 = re.search(r"\b(\d{2})\s*(?:years|yrs|y/o|yo)\b", text.lower())
-    return m2.group(1) if m2 else ""
-
-def find_gender(text):
-    t = text.lower()
-    if "male" in t: return "Male"
-    if "female" in t: return "Female"
-    if "trans" in t: return "Trans"
+def find_age(t):
+    if m := re.search(r"\b(Age|age)[\s:]*([0-9]{1,3})\b", t): return m.group(2)
+    if m2 := re.search(r"\b(\d{2})\s*(years|yrs|y/o|yo)\b", t.lower()): return m2.group(1)
     return ""
-
-def find_pincode(text):
-    m = re.search(r"\b(\d{5,6})\b", text)
-    return m.group(1) if m else ""
-
-def find_company(text):
-    m = re.search(r"(?:Company|company|Co\.|Ltd|Pvt|Corporation|Inc|LLP|LLC)\s*[:\-]?\s*([A-Z][A-Za-z0-9 &]*)", text)
-    if m:
-        return m.group(1).strip()
-    m2 = re.search(r"(?:from|at)\s+([A-Z][A-Za-z0-9 &]{2,})", text)
-    return m2.group(1).strip() if m2 else ""
-
-def find_address_terms(text):
-    m = re.search(r"(?:city|City|from|at)\s+([A-Za-z ]{3,30})", text)
+def find_gender(t):
+    t = t.lower()
+    return "Male" if "male" in t else "Female" if "female" in t else "Trans" if "trans" in t else ""
+def find_pincode(t): return (m.group(1) if (m := re.search(r"\b(\d{5,6})\b", t)) else "")
+def find_company(t):
+    m = re.search(r"(Company|Co\.|Pvt|Ltd|LLP|LLC|Corporation|Inc)\s*[:\-]?\s*([A-Z][A-Za-z0-9 &]*)", t)
+    return m.group(2).strip() if m else ""
+def find_city(t):
+    m = re.search(r"(?:city|City|from|at)\s+([A-Za-z ]{3,30})", t)
     return m.group(1).strip() if m else ""
 
-def extract_all(text):
+def extract(text):
     d = {k: "" for k in FIELDS}
     d["Date"] = datetime.now().date().isoformat()
     d["Name"] = find_name(text)
@@ -73,86 +48,86 @@ def extract_all(text):
     d["Gender"] = find_gender(text)
     d["Phone"] = find_phone(text)
     d["Email"] = find_email(text)
-    d["City"] = find_address_terms(text)
+    d["City"] = find_city(text)
     d["Pincode"] = find_pincode(text)
     d["Company"] = find_company(text)
     d["Order Amount"] = find_amount(text)
     d["Notes"] = text.strip()
     return d
 
-def append_to_daily_excel(row_dict, save_dir=DEFAULT_SAVE_DIR):
-    date_str = datetime.now().strftime("%Y-%m-%d")
-    filename = f"AI_Data_{date_str}.xlsx"
-    path = os.path.join(save_dir, filename)
-    new_df = pd.DataFrame([row_dict], columns=FIELDS)
-
+def save_excel(row, folder):
+    filename = f"AI_Data_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+    path = os.path.join(folder, filename)
+    new_df = pd.DataFrame([row], columns=FIELDS)
     if os.path.exists(path):
         try:
             old_df = pd.read_excel(path, engine="openpyxl")
             df = pd.concat([old_df, new_df], ignore_index=True)
-        except Exception:
+        except:
             df = new_df
     else:
         df = new_df
-
     df.to_excel(path, index=False, engine="openpyxl")
     return path
 
-def make_window():
-    sg.theme('DarkBlue3')
-    layout = [
-        [sg.Text("AI Data Entry Employee", font=("Helvetica", 16))],
-        [sg.Text("Paste raw text:")],
-        [sg.Multiline(key="-RAW-", size=(80, 10))],
-        [sg.Button("Parse"), sg.Button("Save to Excel"), sg.Button("Open Today File"), sg.Button("Exit")],
-        [sg.Text("Preview:")],
-        [sg.Multiline(key="-CSV-", size=(80, 4), disabled=True)],
-        [sg.Text("Save Folder:"), sg.Input(DEFAULT_SAVE_DIR, key="-FOLDER-", size=(50, 1)), sg.FolderBrowse()],
-        [sg.Text("", key="-STATUS-", size=(80, 1))]
-    ]
-    return sg.Window("AI Data Entry Employee", layout, finalize=True)
+def parse_text():
+    raw = input_box.get("1.0", END).strip()
+    if not raw:
+        messagebox.showwarning("Warning", "Paste text first!")
+        return
+    global parsed
+    parsed = extract(raw)
+    csv_preview = ",".join([str(parsed.get(f, "")) for f in FIELDS])
+    preview_box.config(state="normal")
+    preview_box.delete("1.0", END)
+    preview_box.insert(END, csv_preview)
+    preview_box.config(state="disabled")
+    status_label.config(text="Parsed successfully.")
 
-def main():
-    window = make_window()
-    while True:
-        event, val = window.read()
-        if event in (sg.WINDOW_CLOSED, "Exit"):
-            break
+def save_data():
+    if not parsed:
+        messagebox.showwarning("Warning", "Parse text first!")
+        return
+    folder = folder_path.get()
+    os.makedirs(folder, exist_ok=True)
+    path = save_excel(parsed, folder)
+    status_label.config(text=f"Saved to {path}")
+    input_box.delete("1.0", END)
+    preview_box.config(state="normal")
+    preview_box.delete("1.0", END)
+    preview_box.config(state="disabled")
 
-        if event == "Parse":
-            raw = val["-RAW-"].strip()
-            if not raw:
-                window["-STATUS-"].update("Paste raw text first.")
-                continue
-            parsed = extract_all(raw)
-            csv = ",".join([str(parsed.get(f, "")) for f in FIELDS])
-            window["-CSV-"].update(csv)
-            window["-STATUS-"].update("Parsed successfully.")
+def open_today():
+    folder = folder_path.get()
+    filename = f"AI_Data_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+    path = os.path.join(folder, filename)
+    if os.path.exists(path): os.startfile(path)
+    else: status_label.config(text="Today's file not found.")
 
-        if event == "Save to Excel":
-            raw = val["-RAW-"].strip()
-            folder = val["-FOLDER-"]
-            if not raw:
-                window["-STATUS-"].update("Paste raw text first.")
-                continue
-            os.makedirs(folder, exist_ok=True)
-            parsed = extract_all(raw)
-            path = append_to_daily_excel(parsed, save_dir=folder)
-            window["-STATUS-"].update(f"Saved to {path}")
-            window["-RAW-"].update("")
-            window["-CSV-"].update("")
+# GUI
+root = Tk()
+root.title("AI Data Entry Employee")
+root.geometry("900x600")
 
-        if event == "Open Today File":
-            folder = val["-FOLDER-"]
-            date_str = datetime.now().strftime("%Y-%m-%d")
-            filename = f"AI_Data_{date_str}.xlsx"
-            path = os.path.join(folder, filename)
-            if os.path.exists(path):
-                os.startfile(path)
-            else:
-                window["-STATUS-"].update("Today's file not found yet.")
+Label(root, text="AI Data Entry Employee", font=("Arial", 18)).pack()
 
-    window.close()
+input_box = Text(root, height=10, width=100)
+input_box.pack()
 
-if __name__ == "__main__":
-    main()
+Button(root, text="Parse", command=parse_text).pack()
+
+preview_box = Text(root, height=4, width=100, state="disabled", bg="#EDEDED")
+preview_box.pack()
+
+folder_path = StringVar(value=DEFAULT_SAVE_DIR)
+Entry(root, textvariable=folder_path, width=70).pack(side=LEFT, padx=10)
+Button(root, text="Browse", command=lambda: folder_path.set(filedialog.askdirectory())).pack(side=LEFT)
+
+Button(root, text="Save to Excel", command=save_data).pack(pady=10)
+Button(root, text="Open Today File", command=open_today).pack()
+
+status_label = Label(root, text="", fg="blue")
+status_label.pack(pady=10)
+
+parsed = {}
+root.mainloop()
