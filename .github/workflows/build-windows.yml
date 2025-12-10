@@ -19,16 +19,17 @@ jobs:
         python-version: '3.11'
 
     - name: Install dependencies
-      run: pip install -r requirements.txt
-
-    - name: Install flet packager
-      run: pip install flet-packager
+      run: |
+        pip install -r requirements.txt
+        pip install flet
+        pip install flet-cli
 
     - name: Build EXE
-      run: flet-packager windows --build-version 1.0.0
+      run: |
+        flet pack app.py --name "AI Data Entry Employee" --product-name "AI Data Entry Employee" --version "1.0.0"
 
-    - name: Upload EXE
+    - name: Upload Build Output
       uses: actions/upload-artifact@v4
       with:
-        name: AI_Data_Entry_Employee
-        path: dist/**
+        name: AI_Data_Entry_Employee_EXE
+        path: build/**
