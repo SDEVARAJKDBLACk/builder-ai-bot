@@ -1,4 +1,3 @@
 flet
 pandas
 openpyxl
-python-dateutil
