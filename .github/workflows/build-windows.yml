@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows Installer (Flet + Inno Setup)
 on:
   workflow_dispatch:
 
@@ -15,11 +15,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Build EXE with PyInstaller
+          pip install flet-packager
+      - name: Package with flet-packager
         run: |
-          pyinstaller --onefile --windowed --name "AI_Data_Entry" ai_data_entry_app.py
+          flet-packager package --target=windows --name "AI_Data_Entry" app.py
+      - name: Install Inno Setup via Chocolatey
+        run: |
+          choco install innosetup -y
+      - name: Build installer with Inno Setup
+        run: |
+          "%ProgramFiles(x86)%\\Inno Setup 6\\ISCC.exe" build_installer.iss
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: AI_Data_Entry_exe
-          path: dist/AI_Data_Entry.exe
+          name: AI_Data_Entry_installer
+          path: AI_Data_Entry_Installer.exe
