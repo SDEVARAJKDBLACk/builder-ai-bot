@@ -1,0 +1,35 @@
+name: Build Windows EXE
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Install flet packager
+      run: pip install flet-packager
+
+    - name: Build EXE
+      run: flet-packager windows --build-version 1.0.0
+
+    - name: Upload EXE
+      uses: actions/upload-artifact@v3
+      with:
+        name: AI_Data_Entry_Employee
+        path: dist/*
+        
