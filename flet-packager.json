@@ -1,9 +1,0 @@
-{
-  "name": "AI_Data_Entry_Employee",
-  "bundleId": "com.kd.ai.dataentry",
-  "version": "1.0.0",
-  "company": "KD",
-  "description": "AI Data Entry Employee — Powered by KD",
-  "output": "dist",
-  "icon": ""
-}
