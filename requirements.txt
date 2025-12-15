@@ -1,4 +1,0 @@
-flet
-flet-cli
-pandas
-openpyxl
