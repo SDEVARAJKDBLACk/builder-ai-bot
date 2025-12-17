@@ -1,44 +1,70 @@
 import flet as ft
-import re
 import pandas as pd
 import spacy
 import speech_recognition as sr
+import subprocess
+import sys
+import re
 from datetime import datetime
 
-# Load AI NLP model (offline)
-nlp = spacy.load("en_core_web_sm")
+# ---------- SAFE spaCy loader ----------
+def load_spacy_model():
+    try:
+        return spacy.load("en_core_web_sm")
+    except OSError:
+        subprocess.check_call(
+            [sys.executable, "-m", "spacy", "download", "en_core_web_sm"]
+        )
+        return spacy.load("en_core_web_sm")
+
+nlp = load_spacy_model()
+# --------------------------------------
 
 
-def extract_data_ai(text: str) -> dict:
+def extract_dynamic_ai(text: str) -> dict:
+    data = {}
+
+    # 1️⃣ Key-Value detection (best for notes, invoices)
+    lines = text.splitlines()
+    for line in lines:
+        if ":" in line:
+            key, value = line.split(":", 1)
+            key = key.strip().title()
+            value = value.strip()
+            if key and value:
+                data[key] = value
+
+    # 2️⃣ NLP entity detection (fallback)
     doc = nlp(text)
 
-    data = {
-        "Name": "",
-        "Phone": "",
-        "Email": "",
-        "Amount": "",
-        "City": "",
-        "Date": datetime.now().strftime("%Y-%m-%d"),
+    for ent in doc.ents:
+        label_map = {
+            "PERSON": "Name",
+            "GPE": "City",
+            "ORG": "Organization",
+            "DATE": "Date",
+            "MONEY": "Amount",
+            "QUANTITY": "Quantity",
+        }
+
+        field = label_map.get(ent.label_)
+        if field and field not in data:
+            data[field] = ent.text
+
+    # 3️⃣ Regex-based smart detection
+    patterns = {
+        "Phone": r"\b\d{10}\b",
+        "Email": r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",
+        "Pincode": r"\b\d{6}\b",
     }
 
-    # AI-based entity extraction
-    for ent in doc.ents:
-        if ent.label_ == "PERSON" and not data["Name"]:
-            data["Name"] = ent.text
-        elif ent.label_ == "GPE" and not data["City"]:
-            data["City"] = ent.text
+    for field, pattern in patterns.items():
+        match = re.search(pattern, text)
+        if match and field not in data:
+            data[field] = match.group()
 
-    # Regex-based extraction
-    phone = re.search(r"\b\d{10}\b", text)
-    email = re.search(r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+", text)
-    amount = re.search(r"(₹|rs\.?)\s?\d+", text, re.IGNORECASE)
-
-    if phone:
-        data["Phone"] = phone.group()
-    if email:
-        data["Email"] = email.group()
-    if amount:
-        data["Amount"] = amount.group()
+    # 4️⃣ Always add timestamp
+    data["Captured On"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     return data
 
@@ -61,46 +87,40 @@ def main(page: ft.Page):
     page.padding = 20
 
     input_box = ft.TextField(
-        label="Enter raw input (text / notes / invoice / voice)",
+        label="Enter any raw data (notes / invoice / message / voice)",
         multiline=True,
         min_lines=6,
-        max_lines=8,
         expand=True,
     )
 
-    table = ft.DataTable(
-        columns=[
-            ft.DataColumn(ft.Text("Field")),
-            ft.DataColumn(ft.Text("Value")),
-        ],
-        rows=[],
-    )
-
+    table = ft.DataTable(columns=[], rows=[])
     status = ft.Text()
     extracted = {}
 
     def analyze(e):
         nonlocal extracted
         if not input_box.value.strip():
-            status.value = "Input required"
+            status.value = "Please enter input"
             status.color = ft.Colors.RED
             page.update()
             return
 
-        extracted = extract_data_ai(input_box.value)
+        extracted = extract_dynamic_ai(input_box.value)
+
+        table.columns.clear()
         table.rows.clear()
 
-        for k, v in extracted.items():
-            table.rows.append(
-                ft.DataRow(
-                    cells=[
-                        ft.DataCell(ft.Text(k)),
-                        ft.DataCell(ft.Text(v)),
-                    ]
-                )
-            )
+        # Dynamic table creation
+        for key in extracted.keys():
+            table.columns.append(ft.DataColumn(ft.Text(key)))
 
-        status.value = "AI analysis completed successfully"
+        table.rows.append(
+            ft.DataRow(
+                cells=[ft.DataCell(ft.Text(v)) for v in extracted.values()]
+            )
+        )
+
+        status.value = "AI dynamically created fields successfully"
         status.color = ft.Colors.GREEN
         page.update()
 
@@ -117,6 +137,7 @@ def main(page: ft.Page):
         else:
             status.value = "Voice recognition failed"
             status.color = ft.Colors.RED
+
         page.update()
 
     def export_excel(e):
@@ -127,7 +148,7 @@ def main(page: ft.Page):
             return
 
         df = pd.DataFrame([extracted])
-        filename = f"AI_Data_Entry_{datetime.now().strftime('%H%M%S')}.xlsx"
+        filename = f"AI_Dynamic_Data_{datetime.now().strftime('%H%M%S')}.xlsx"
         df.to_excel(filename, index=False)
 
         status.value = f"Excel saved: {filename}"
@@ -151,7 +172,7 @@ def main(page: ft.Page):
                     ]
                 ),
                 ft.Divider(),
-                ft.Text("Extracted Data", size=18),
+                ft.Text("Dynamic Extracted Data", size=18),
                 table,
                 ft.Divider(),
                 status,
