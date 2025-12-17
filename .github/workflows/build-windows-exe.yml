@@ -1,10 +1,4 @@
 
----
-
-## ✅ 4️⃣ GitHub Actions – BUILD WINDOWS EXE  
-📄 `.github/workflows/build-windows-exe.yml`
-
-```yaml
 name: Build Windows EXE
 
 on:
