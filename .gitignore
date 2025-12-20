@@ -1,9 +1,9 @@
 __pycache__/
 *.pyc
-*.spec
-
+*.pyo
+*.exe
 build/
 dist/
-
 .env
-.venv/
+.idea/
+.vscode/
