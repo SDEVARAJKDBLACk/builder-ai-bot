@@ -1,5 +1,5 @@
 
-name: Build Windows EXE
+name: Build Windows EXE (Flet)
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -23,12 +23,12 @@ jobs:
           pip install -r requirements.txt
           python -m spacy download en_core_web_sm
 
-      - name: Build EXE
+      - name: Build Windows App
         run: |
-          pyinstaller --onefile --noconsole --name AI_Data_Entry_Pro main.py
+          flet pack main.py --name AI_Data_Entry_Pro
 
-      - name: Upload EXE artifact
+      - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
           name: AI_Data_Entry_Pro_EXE
-          path: dist/AI_Data_Entry_Pro.exe
+          path: dist/*
