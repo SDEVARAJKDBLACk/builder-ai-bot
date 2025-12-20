@@ -162,7 +162,7 @@ def main(page: ft.Page):
                 ft.Row(
                     [
                         ft.ElevatedButton("Analyze with AI", on_click=analyze),
-                        ft.OutlinedButton("Voice Input 🎤", on_click=voice),
+                        ft.OutlinedButton("Voice Input ", on_click=voice),
                         ft.FilledButton("Export to Excel", on_click=export_excel),
                     ]
                 ),
