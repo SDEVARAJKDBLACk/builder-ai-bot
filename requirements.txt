@@ -1,3 +1,8 @@
 flet==0.22.0
 pandas
 pyinstaller
+SpeechRecognition
+pytesseract
+pillow
+spacy
+
