@@ -1,3 +1,4 @@
+
 import flet as ft
 import pandas as pd
 import spacy
@@ -7,7 +8,7 @@ import sys
 import re
 from datetime import datetime
 
-# ---------- SAFE spaCy loader ----------
+# ---------- SAFE spaCy MODEL LOADER ----------
 def load_spacy_model():
     try:
         return spacy.load("en_core_web_sm")
@@ -18,15 +19,14 @@ def load_spacy_model():
         return spacy.load("en_core_web_sm")
 
 nlp = load_spacy_model()
-# --------------------------------------
+# --------------------------------------------
 
 
 def extract_dynamic_ai(text: str) -> dict:
     data = {}
 
-    # 1️⃣ Key-Value detection (best for notes, invoices)
-    lines = text.splitlines()
-    for line in lines:
+    # 1️⃣ Key-Value detection
+    for line in text.splitlines():
         if ":" in line:
             key, value = line.split(":", 1)
             key = key.strip().title()
@@ -34,24 +34,23 @@ def extract_dynamic_ai(text: str) -> dict:
             if key and value:
                 data[key] = value
 
-    # 2️⃣ NLP entity detection (fallback)
+    # 2️⃣ NLP entity detection
     doc = nlp(text)
+    label_map = {
+        "PERSON": "Name",
+        "GPE": "City",
+        "ORG": "Organization",
+        "DATE": "Date",
+        "MONEY": "Amount",
+        "QUANTITY": "Quantity",
+    }
 
     for ent in doc.ents:
-        label_map = {
-            "PERSON": "Name",
-            "GPE": "City",
-            "ORG": "Organization",
-            "DATE": "Date",
-            "MONEY": "Amount",
-            "QUANTITY": "Quantity",
-        }
-
         field = label_map.get(ent.label_)
         if field and field not in data:
             data[field] = ent.text
 
-    # 3️⃣ Regex-based smart detection
+    # 3️⃣ Regex detection
     patterns = {
         "Phone": r"\b\d{10}\b",
         "Email": r"[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+",
@@ -63,9 +62,7 @@ def extract_dynamic_ai(text: str) -> dict:
         if match and field not in data:
             data[field] = match.group()
 
-    # 4️⃣ Always add timestamp
     data["Captured On"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
     return data
 
 
@@ -106,11 +103,9 @@ def main(page: ft.Page):
             return
 
         extracted = extract_dynamic_ai(input_box.value)
-
         table.columns.clear()
         table.rows.clear()
 
-        # Dynamic table creation
         for key in extracted.keys():
             table.columns.append(ft.DataColumn(ft.Text(key)))
 
@@ -120,7 +115,7 @@ def main(page: ft.Page):
             )
         )
 
-        status.value = "AI dynamically created fields successfully"
+        status.value = "AI created fields dynamically"
         status.color = ft.Colors.GREEN
         page.update()
 
@@ -188,4 +183,5 @@ def main(page: ft.Page):
     )
 
 
-ft.app(target=main)
+# ⚠️ VERY IMPORTANT FOR WINDOWS EXE
+ft.app(target=main, view=ft.AppView.WINDOW)
