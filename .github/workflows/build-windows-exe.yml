@@ -24,7 +24,7 @@ jobs:
 
       - name: Build Windows App
         run: |
-          flet pack main.py --name AI_Data_Entry_Pro
+          flet pack main.py --name AI_Data_Entry_Pro --icon none
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
