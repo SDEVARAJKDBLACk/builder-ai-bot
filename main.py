@@ -4,57 +4,63 @@ import re
 import pandas as pd
 from datetime import datetime
 
-# ---------- SAFE NLP LOAD ----------
+# ---------- NLP ----------
 try:
     import spacy
     nlp = spacy.load("en_core_web_sm")
 except:
     nlp = None
 
-# ---------- SAFE VOICE LOAD ----------
+# ---------- VOICE ----------
 try:
     import speech_recognition as sr
 except:
     sr = None
 
 
-# ---------- SAVE LOCATION (VERY IMPORTANT) ----------
-SAVE_DIR = os.path.join(os.path.expanduser("~"), "AI_Data_Entry_Output")
-os.makedirs(SAVE_DIR, exist_ok=True)
-EXCEL_FILE = os.path.join(SAVE_DIR, "ai_data_entry.xlsx")
+# ---------- SAVE LOCATION ----------
+BASE_DIR = os.path.join(os.path.expanduser("~"), "AI_Data_Entry_Output")
+os.makedirs(BASE_DIR, exist_ok=True)
+EXCEL_FILE = os.path.join(BASE_DIR, "ai_data_entry.xlsx")
 
 
-# ---------- AI EXTRACTION ----------
+# ---------- DATA EXTRACTION ----------
 def extract_data(text: str):
-    result = {}
+    data = {}
 
-    regex_patterns = {
+    # 1️⃣ KEY : VALUE parsing (MAIN FIX)
+    for line in text.splitlines():
+        if ":" in line:
+            key, value = line.split(":", 1)
+            data[key.strip()] = value.strip()
+
+    # 2️⃣ REGEX fallback
+    patterns = {
         "Email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
         "Phone": r"\b\d{10}\b",
         "Pincode": r"\b\d{6}\b",
         "Amount": r"\b\d+(\.\d{1,2})?\b",
     }
 
-    for key, pattern in regex_patterns.items():
-        found = re.findall(pattern, text)
-        if found:
-            result[key] = ", ".join(map(str, found))
+    for key, pattern in patterns.items():
+        match = re.findall(pattern, text)
+        if match and key not in data:
+            data[key] = match[0]
 
+    # 3️⃣ NLP enrichment (supporting role)
     if nlp:
         doc = nlp(text)
         for ent in doc.ents:
-            if ent.label_ not in result:
-                result[ent.label_] = ent.text
+            if ent.label_ not in data:
+                data[ent.label_] = ent.text
 
-    result["Raw_Input"] = text
-    result["Saved_Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    return result
+    data["Saved_Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return data
 
 
-# ---------- EXCEL SAVE (100% WORKING) ----------
-def save_excel(data: dict):
-    df_new = pd.DataFrame([data])
+# ---------- SAVE TO EXCEL ----------
+def save_to_excel(record: dict):
+    df_new = pd.DataFrame([record])
 
     if os.path.exists(EXCEL_FILE):
         df_old = pd.read_excel(EXCEL_FILE)
@@ -68,56 +74,58 @@ def save_excel(data: dict):
 # ---------- UI ----------
 def main(page: ft.Page):
     page.title = "AI Data Entry Pro"
-    page.window_width = 950
+    page.window_width = 960
     page.window_height = 680
 
-    analyzed_data = {}
+    analyzed_record = {}
 
     input_box = ft.TextField(
         label="Enter raw text / notes / phrases",
         multiline=True,
-        min_lines=5,
+        min_lines=6,
         expand=True
     )
 
     status = ft.Text()
     table = ft.DataTable(columns=[], rows=[])
 
-    # ---------- BUTTON FUNCTIONS ----------
-    def analyze_only(e):
-        nonlocal analyzed_data
+    # ---------- BUTTONS ----------
+    def analyze_data(e):
+        nonlocal analyzed_record
         text = input_box.value.strip()
 
         if not text:
-            status.value = "❌ Please enter some data"
+            status.value = "Please enter data"
             page.update()
             return
 
-        analyzed_data = extract_data(text)
+        analyzed_record = extract_data(text)
 
-        table.columns = [ft.DataColumn(ft.Text(k)) for k in analyzed_data.keys()]
+        table.columns = [
+            ft.DataColumn(ft.Text(k)) for k in analyzed_record.keys()
+        ]
         table.rows = [
             ft.DataRow(
-                cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed_data.values()]
+                cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed_record.values()]
             )
         ]
 
         status.value = "Data analyzed successfully"
         page.update()
 
-    def save_only(e):
-        if not analyzed_data:
-            status.value = " Analyze data"
+    def save_excel_btn(e):
+        if not analyzed_record:
+            status.value = "Analyze data first"
             page.update()
             return
 
-        save_excel(analyzed_data)
-        status.value = f" Saved to Excel: {EXCEL_FILE}"
+        save_to_excel(analyzed_record)
+        status.value = "Data saved to Excel successfully"
         page.update()
 
     def voice_input(e):
         if not sr:
-            status.value = "Speech module not installed"
+            status.value = "Speech module not available"
             page.update()
             return
 
@@ -130,26 +138,29 @@ def main(page: ft.Page):
 
             text = r.recognize_google(audio)
             input_box.value += "\n" + text
-            status.value = " Voice input added"
-        except Exception as ex:
-            status.value = f"Voice error: {ex}"
+            status.value = "Voice input added"
+        except Exception:
+            status.value = "Voice recognition failed"
 
         page.update()
 
-    # ---------- UI LAYOUT ----------
+    # ---------- LAYOUT ----------
     page.add(
         ft.Column(
             expand=True,
             controls=[
-                ft.Text("AI Data Entry – Smart Automated Data Worker",
-                        size=22, weight="bold"),
+                ft.Text(
+                    "AI Data Entry – Smart Automated Data Worker",
+                    size=22,
+                    weight="bold"
+                ),
                 input_box,
 
                 ft.Row(
                     controls=[
-                        ft.ElevatedButton("Analyze Data", on_click=analyze_only),
-                        ft.ElevatedButton("Save to Excel", on_click=save_only),
-                        ft.ElevatedButton(" Voice Input", on_click=voice_input),
+                        ft.ElevatedButton("Analyze Data", on_click=analyze_data),
+                        ft.ElevatedButton("Save to Excel", on_click=save_excel_btn),
+                        ft.ElevatedButton("🎤 Voice Input", on_click=voice_input),
                     ]
                 ),
 
@@ -157,8 +168,7 @@ def main(page: ft.Page):
                 table,
                 status,
                 ft.Divider(),
-                ft.Text("Powered by KD", italic=True),
-                ft.Text(f"Excel save path: {EXCEL_FILE}", size=12)
+                ft.Text("Powered by KD | Publisher: Deva", italic=True),
             ]
         )
     )
