@@ -1,175 +1,168 @@
+
 import flet as ft
-import os
 import re
 import pandas as pd
 from datetime import datetime
+import os
+import speech_recognition as sr
 
-# ---------- NLP ----------
+# NLP
 try:
     import spacy
     nlp = spacy.load("en_core_web_sm")
 except:
     nlp = None
 
-# ---------- VOICE ----------
-try:
-    import speech_recognition as sr
-except:
-    sr = None
+APP_TITLE = "AI Data Entry – Smart Automated Data Worker"
+PUBLISHER = "Deva"
+EXCEL_FILE = "ai_data_entry_output.xlsx"
 
 
-# ---------- SAVE LOCATION ----------
-BASE_DIR = os.path.join(os.path.expanduser("~"), "AI_Data_Entry_Output")
-os.makedirs(BASE_DIR, exist_ok=True)
-EXCEL_FILE = os.path.join(BASE_DIR, "ai_data_entry.xlsx")
-
-
-# ---------- DATA EXTRACTION ----------
+# ---------------- DATA EXTRACTION ----------------
 def extract_data(text: str):
     data = {}
 
-    # 1️⃣ KEY : VALUE parsing (MAIN FIX)
-    for line in text.splitlines():
-        if ":" in line:
-            key, value = line.split(":", 1)
-            data[key.strip()] = value.strip()
+    lines = [l.strip() for l in text.splitlines() if l.strip()]
 
-    # 2️⃣ REGEX fallback
-    patterns = {
-        "Email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}",
-        "Phone": r"\b\d{10}\b",
-        "Pincode": r"\b\d{6}\b",
-        "Amount": r"\b\d+(\.\d{1,2})?\b",
-    }
+    for line in lines:
+        low = line.lower()
 
-    for key, pattern in patterns.items():
-        match = re.findall(pattern, text)
-        if match and key not in data:
-            data[key] = match[0]
+        if "name" in low:
+            data["Name"] = line.split(":")[-1].strip()
 
-    # 3️⃣ NLP enrichment (supporting role)
+        elif "age" in low:
+            n = re.findall(r"\d+", line)
+            if n:
+                data["Age"] = n[0]
+
+        elif "gender" in low:
+            data["Gender"] = line.split(":")[-1].strip()
+
+        elif "product" in low:
+            data["Product"] = line.split(":")[-1].strip()
+
+        elif "amount" in low or "price" in low:
+            a = re.findall(r"\d+(\.\d{1,2})?", line)
+            if a:
+                data["Amount"] = a[0][0] if isinstance(a[0], tuple) else a[0]
+
+        elif "city" in low:
+            data["City"] = line.split(":")[-1].strip()
+
+        elif "pincode" in low:
+            p = re.findall(r"\d{6}", line)
+            if p:
+                data["Pincode"] = p[0]
+
+    email = re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", text)
+    phone = re.findall(r"\b\d{10}\b", text)
+
+    if email:
+        data["Email"] = email[0]
+    if phone:
+        data["Phone"] = phone[0]
+
     if nlp:
         doc = nlp(text)
         for ent in doc.ents:
-            if ent.label_ not in data:
-                data[ent.label_] = ent.text
+            if ent.label_ == "PERSON" and "Name" not in data:
+                data["Name"] = ent.text
+            elif ent.label_ == "GPE" and "City" not in data:
+                data["City"] = ent.text
 
     data["Saved_Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     return data
 
 
-# ---------- SAVE TO EXCEL ----------
-def save_to_excel(record: dict):
-    df_new = pd.DataFrame([record])
-
-    if os.path.exists(EXCEL_FILE):
-        df_old = pd.read_excel(EXCEL_FILE)
-        df = pd.concat([df_old, df_new], ignore_index=True)
-    else:
-        df = df_new
-
-    df.to_excel(EXCEL_FILE, index=False)
-
-
-# ---------- UI ----------
+# ---------------- FLET APP ----------------
 def main(page: ft.Page):
-    page.title = "AI Data Entry Pro"
-    page.window_width = 960
-    page.window_height = 680
+    page.title = APP_TITLE
+    page.window_width = 1100
+    page.window_height = 700
+    page.theme_mode = ft.ThemeMode.DARK
 
-    analyzed_record = {}
+    analyzed_data = {}
 
     input_box = ft.TextField(
-        label="Enter raw text / notes / phrases",
+        label="Enter raw data / notes / voice input",
         multiline=True,
         min_lines=6,
-        expand=True
+        expand=True,
     )
 
-    status = ft.Text()
     table = ft.DataTable(columns=[], rows=[])
 
-    # ---------- BUTTONS ----------
-    def analyze_data(e):
-        nonlocal analyzed_record
-        text = input_box.value.strip()
+    status = ft.Text("Ready", size=12)
 
-        if not text:
-            status.value = "Please enter data"
+    # ---- BUTTON FUNCTIONS ----
+    def analyze_click(e):
+        nonlocal analyzed_data
+        raw = input_box.value.strip()
+        if not raw:
+            status.value = "Please enter some data"
             page.update()
             return
 
-        analyzed_record = extract_data(text)
+        analyzed_data = extract_data(raw)
 
         table.columns = [
-            ft.DataColumn(ft.Text(k)) for k in analyzed_record.keys()
+            ft.DataColumn(ft.Text(k)) for k in analyzed_data.keys()
         ]
         table.rows = [
-            ft.DataRow(
-                cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed_record.values()]
-            )
+            ft.DataRow(cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed_data.values()])
         ]
 
         status.value = "Data analyzed successfully"
         page.update()
 
-    def save_excel_btn(e):
-        if not analyzed_record:
+    def save_excel_click(e):
+        if not analyzed_data:
             status.value = "Analyze data first"
             page.update()
             return
 
-        save_to_excel(analyzed_record)
-        status.value = "Data saved to Excel successfully"
+        df = pd.DataFrame([analyzed_data])
+        if os.path.exists(EXCEL_FILE):
+            old = pd.read_excel(EXCEL_FILE)
+            df = pd.concat([old, df], ignore_index=True)
+
+        df.to_excel(EXCEL_FILE, index=False)
+        status.value = "Data saved to Excel"
         page.update()
 
-    def voice_input(e):
-        if not sr:
-            status.value = "Speech module not available"
+    def voice_input_click(e):
+        r = sr.Recognizer()
+        with sr.Microphone() as source:
+            status.value = "Listening..."
             page.update()
-            return
-
-        try:
-            r = sr.Recognizer()
-            with sr.Microphone() as source:
-                status.value = "Listening..."
-                page.update()
+            try:
                 audio = r.listen(source)
-
-            text = r.recognize_google(audio)
-            input_box.value += "\n" + text
-            status.value = "Voice input added"
-        except Exception:
-            status.value = "Voice recognition failed"
-
+                text = r.recognize_google(audio)
+                input_box.value += text + "\n"
+                status.value = "Voice input added"
+            except:
+                status.value = "Voice input failed"
         page.update()
 
-    # ---------- LAYOUT ----------
+    # ---- UI ----
     page.add(
         ft.Column(
-            expand=True,
-            controls=[
-                ft.Text(
-                    "AI Data Entry – Smart Automated Data Worker",
-                    size=22,
-                    weight="bold"
-                ),
+            [
+                ft.Text(APP_TITLE, size=22, weight="bold"),
+                ft.Text(f"Publisher: {PUBLISHER}", size=12),
                 input_box,
-
                 ft.Row(
-                    controls=[
-                        ft.ElevatedButton("Analyze Data", on_click=analyze_data),
-                        ft.ElevatedButton("Save to Excel", on_click=save_excel_btn),
-                        ft.ElevatedButton("🎤 Voice Input", on_click=voice_input),
+                    [
+                        ft.ElevatedButton("Analyze Data", on_click=analyze_click),
+                        ft.ElevatedButton("Save to Excel", on_click=save_excel_click),
+                        ft.ElevatedButton("Voice Input", on_click=voice_input_click),
                     ]
                 ),
-
-                ft.Text("Analyzed Output", size=18, weight="bold"),
                 table,
                 status,
-                ft.Divider(),
-                ft.Text("Powered by KD | Publisher: Deva", italic=True),
-            ]
+                ft.Text("Powered by KD", size=11),
+            ],
+            expand=True,
         )
     )
 
