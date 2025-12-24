@@ -1,9 +1,7 @@
 
-flet==0.22.0
+flet
 pandas
-pyinstaller
-SpeechRecognition
-pytesseract
-pillow
+openpyxl
+speechrecognition
+pyaudio
 spacy
-
