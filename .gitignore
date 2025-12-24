@@ -1,9 +1,0 @@
-__pycache__/
-*.pyc
-*.pyo
-*.exe
-build/
-dist/
-.env
-.idea/
-.vscode/
