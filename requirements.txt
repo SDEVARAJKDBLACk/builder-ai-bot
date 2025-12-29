@@ -1,7 +1,0 @@
-
-flet
-pandas
-openpyxl
-speechrecognition
-pyaudio
-spacy
