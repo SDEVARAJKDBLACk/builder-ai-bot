@@ -1,4 +1,3 @@
-
 import flet as ft
 import re
 import pandas as pd
@@ -6,11 +5,11 @@ from datetime import datetime
 import os
 import speech_recognition as sr
 
-# NLP
+# Try loading NLP
 try:
     import spacy
     nlp = spacy.load("en_core_web_sm")
-except:
+except Exception:
     nlp = None
 
 APP_TITLE = "AI Data Entry – Smart Automated Data Worker"
@@ -21,27 +20,31 @@ EXCEL_FILE = "ai_data_entry_output.xlsx"
 # ---------------- DATA EXTRACTION ----------------
 def extract_data(text: str):
     data = {}
-
     lines = [l.strip() for l in text.splitlines() if l.strip()]
 
     for line in lines:
         low = line.lower()
 
-        if "name" in low:
-            data["Name"] = line.split(":")[-1].strip()
+        if "name" in low and ":" in line:
+            data["Name"] = line.split(":", 1)[1].strip()
 
         elif "age" in low:
-            n = re.findall(r"\d+", line)
-            if n:
-                data["Age"] = n[0]
+            m = re.findall(r"\d+", line)
+            if m:
+                data["Age"] = m[0]
 
         elif "gender" in low:
             data["Gender"] = line.split(":")[-1].strip()
 
-        elif "product" in low:
+        elif "product" in low or "item" in low:
             data["Product"] = line.split(":")[-1].strip()
 
-        elif "amount" in low or "price" in low:
+        elif "quantity" in low:
+            q = re.findall(r"\d+", line)
+            if q:
+                data["Quantity"] = q[0]
+
+        elif "amount" in low or "price" in low or "total" in low:
             a = re.findall(r"\d+(\.\d{1,2})?", line)
             if a:
                 data["Amount"] = a[0][0] if isinstance(a[0], tuple) else a[0]
@@ -49,7 +52,10 @@ def extract_data(text: str):
         elif "city" in low:
             data["City"] = line.split(":")[-1].strip()
 
-        elif "pincode" in low:
+        elif "state" in low:
+            data["State"] = line.split(":")[-1].strip()
+
+        elif "pincode" in low or "zip" in low:
             p = re.findall(r"\d{6}", line)
             if p:
                 data["Pincode"] = p[0]
@@ -62,6 +68,7 @@ def extract_data(text: str):
     if phone:
         data["Phone"] = phone[0]
 
+    # NLP fallback
     if nlp:
         doc = nlp(text)
         for ent in doc.ents:
@@ -91,37 +98,37 @@ def main(page: ft.Page):
     )
 
     table = ft.DataTable(columns=[], rows=[])
+    status = ft.Text("Ready")
 
-    status = ft.Text("Ready", size=12)
-
-    # ---- BUTTON FUNCTIONS ----
-    def analyze_click(e):
+    # ---- Button Actions ----
+    def analyze_data(e):
         nonlocal analyzed_data
         raw = input_box.value.strip()
         if not raw:
-            status.value = "Please enter some data"
+            status.value = "Please enter data"
             page.update()
             return
 
         analyzed_data = extract_data(raw)
 
-        table.columns = [
-            ft.DataColumn(ft.Text(k)) for k in analyzed_data.keys()
-        ]
+        table.columns = [ft.DataColumn(ft.Text(k)) for k in analyzed_data.keys()]
         table.rows = [
-            ft.DataRow(cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed_data.values()])
+            ft.DataRow(
+                cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed_data.values()]
+            )
         ]
 
         status.value = "Data analyzed successfully"
         page.update()
 
-    def save_excel_click(e):
+    def save_excel(e):
         if not analyzed_data:
             status.value = "Analyze data first"
             page.update()
             return
 
         df = pd.DataFrame([analyzed_data])
+
         if os.path.exists(EXCEL_FILE):
             old = pd.read_excel(EXCEL_FILE)
             df = pd.concat([old, df], ignore_index=True)
@@ -130,21 +137,21 @@ def main(page: ft.Page):
         status.value = "Data saved to Excel"
         page.update()
 
-    def voice_input_click(e):
+    def voice_input(e):
         r = sr.Recognizer()
-        with sr.Microphone() as source:
-            status.value = "Listening..."
-            page.update()
-            try:
+        try:
+            with sr.Microphone() as source:
+                status.value = "Listening..."
+                page.update()
                 audio = r.listen(source)
                 text = r.recognize_google(audio)
                 input_box.value += text + "\n"
                 status.value = "Voice input added"
-            except:
-                status.value = "Voice input failed"
+        except Exception:
+            status.value = "Voice input failed"
         page.update()
 
-    # ---- UI ----
+    # ---- UI Layout ----
     page.add(
         ft.Column(
             [
@@ -153,9 +160,9 @@ def main(page: ft.Page):
                 input_box,
                 ft.Row(
                     [
-                        ft.ElevatedButton("Analyze Data", on_click=analyze_click),
-                        ft.ElevatedButton("Save to Excel", on_click=save_excel_click),
-                        ft.ElevatedButton("Voice Input", on_click=voice_input_click),
+                        ft.ElevatedButton("Analyze Data", on_click=analyze_data),
+                        ft.ElevatedButton("Save to Excel", on_click=save_excel),
+                        ft.ElevatedButton("Voice Input", on_click=voice_input),
                     ]
                 ),
                 table,
@@ -168,3 +175,4 @@ def main(page: ft.Page):
 
 
 ft.app(target=main)
+
