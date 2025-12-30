@@ -20,11 +20,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          python -m spacy download en_core_web_sm
+          pip install flet
 
       - name: Build EXE
         run: |
-          pip install flet
           flet pack main.py --name AI_Data_Entry_Pro
 
       - name: Upload EXE
@@ -32,4 +31,3 @@ jobs:
         with:
           name: AI_Data_Entry_Pro_EXE
           path: dist/
-          
