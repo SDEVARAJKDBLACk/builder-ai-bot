@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v4
 
       - name: Setup Python
@@ -17,19 +17,16 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies (SAME PYTHON)
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-          python -m pip install flet pyinstaller
+          pip install -r requirements.txt
+          python -m spacy download en_core_web_sm
 
-      - name: Verify PyInstaller
+      - name: Build EXE with Flet
         run: |
-          python -c "import PyInstaller; print('PyInstaller OK')"
-
-      - name: Build Windows EXE (SAFE)
-        run: |
-          python -m flet pack main.py --name AI_Data_Entry_Pro
+          pip install flet
+          flet pack main.py --name AI_Data_Entry_Pro
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
