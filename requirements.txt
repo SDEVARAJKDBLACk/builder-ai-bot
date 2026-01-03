@@ -1,7 +1,5 @@
-flet
 pandas
 openpyxl
-speechrecognition
-pillow
-pytesseract
-spacy
+python-dateutil
+pysimplegui
+pyinstaller
