@@ -1,5 +1,2 @@
 pandas
 openpyxl
-python-dateutil
-pysimplegui
-pyinstaller
