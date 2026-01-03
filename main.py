@@ -1,210 +1,134 @@
-import flet as ft
+
+#!/usr/bin/env python3
+# AI Data Entry Employee (Tkinter Version - Works 100% in EXE)
+
 import re
+import os
 import pandas as pd
 from datetime import datetime
-import os
+from tkinter import *
+from tkinter import messagebox, filedialog
 
-# -------- OPTIONAL AI LIBS --------
-try:
-    import spacy
-    nlp = spacy.load("en_core_web_sm")
-except:
-    nlp = None
+FIELDS = [
+    "Date", "Name", "Age", "Gender", "Phone", "Email", "Street", "City",
+    "State", "Pincode", "Country", "Company", "Product/Service",
+    "Order Amount", "ID Number", "Notes"
+]
 
-try:
-    import speech_recognition as sr
-except:
-    sr = None
+DEFAULT_SAVE_DIR = os.path.join(os.path.expanduser("~"), "Documents", "AI_Data_Entries")
+os.makedirs(DEFAULT_SAVE_DIR, exist_ok=True)
 
-try:
-    from PIL import Image
-    import pytesseract
-except:
-    pytesseract = None
+def find_phone(t):  return (m.group(0).strip() if (m := re.search(r"(?:\+?\d{1,3}[\s\-]?)?(\d{10}|\d{9}|\d{8})", t)) else "")
+def find_email(t):  return (m.group(0).strip() if (m := re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", t)) else "")
+def find_amount(t): return (m.group(1).replace(",", "") if (m := re.search(r"(?:₹|Rs|INR|\$)?\s*([0-9]{1,3}(?:[,\.][0-9]{3})*(?:\.\d+)?|[0-9]+(?:\.\d+)?)", t)) else "")
+def find_name(t):
+    m = re.search(r"(?:Name|name)[:\-\s]\s*([A-Z][a-z]+(?:\s[A-Z][a-z]+)?)", t)
+    if m: return m.group(1).strip()
+    m2 = re.search(r"^([A-Z][a-z]+(?:\s[A-Z][a-z]+){0,2})", t.strip())
+    return m2.group(1).strip() if m2 else ""
+def find_age(t):
+    if m := re.search(r"\b(Age|age)[\s:]*([0-9]{1,3})\b", t): return m.group(2)
+    if m2 := re.search(r"\b(\d{2})\s*(years|yrs|y/o|yo)\b", t.lower()): return m2.group(1)
+    return ""
+def find_gender(t):
+    t = t.lower()
+    return "Male" if "male" in t else "Female" if "female" in t else "Trans" if "trans" in t else ""
+def find_pincode(t): return (m.group(1) if (m := re.search(r"\b(\d{5,6})\b", t)) else "")
+def find_company(t):
+    m = re.search(r"(Company|Co\.|Pvt|Ltd|LLP|LLC|Corporation|Inc)\s*[:\-]?\s*([A-Z][A-Za-z0-9 &]*)", t)
+    return m.group(2).strip() if m else ""
+def find_city(t):
+    m = re.search(r"(?:city|City|from|at)\s+([A-Za-z ]{3,30})", t)
+    return m.group(1).strip() if m else ""
 
+def extract(text):
+    d = {k: "" for k in FIELDS}
+    d["Date"] = datetime.now().date().isoformat()
+    d["Name"] = find_name(text)
+    d["Age"] = find_age(text)
+    d["Gender"] = find_gender(text)
+    d["Phone"] = find_phone(text)
+    d["Email"] = find_email(text)
+    d["City"] = find_city(text)
+    d["Pincode"] = find_pincode(text)
+    d["Company"] = find_company(text)
+    d["Order Amount"] = find_amount(text)
+    d["Notes"] = text.strip()
+    return d
 
-EXCEL_FILE = "ai_data_entry_output.xlsx"
-
-
-# -------- DATA EXTRACTION --------
-def extract_data(text):
-    data = {}
-    lines = text.splitlines()
-
-    for line in lines:
-        l = line.lower()
-
-        if "name" in l:
-            data["Name"] = line.split(":")[-1].strip()
-
-        elif "age" in l:
-            m = re.findall(r"\d+", line)
-            if m:
-                data["Age"] = m[0]
-
-        elif "gender" in l:
-            data["Gender"] = line.split(":")[-1].strip()
-
-        elif "product" in l or "item" in l:
-            data["Product"] = line.split(":")[-1].strip()
-
-        elif "amount" in l or "price" in l:
-            m = re.findall(r"\d+", line)
-            if m:
-                data["Amount"] = m[0]
-
-        elif "city" in l:
-            data["City"] = line.split(":")[-1].strip()
-
-        elif "pincode" in l:
-            m = re.findall(r"\d{6}", line)
-            if m:
-                data["Pincode"] = m[0]
-
-    email = re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", text)
-    phone = re.findall(r"\b\d{10}\b", text)
-
-    if email:
-        data["Email"] = email[0]
-    if phone:
-        data["Phone"] = phone[0]
-
-    if nlp:
-        doc = nlp(text)
-        for ent in doc.ents:
-            if ent.label_ == "PERSON" and "Name" not in data:
-                data["Name"] = ent.text
-            if ent.label_ == "GPE" and "City" not in data:
-                data["City"] = ent.text
-
-    data["Saved_Time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    data["Raw_Input"] = text
-    return data
-
-
-# -------- SAVE EXCEL --------
-def save_excel(data):
-    df_new = pd.DataFrame([data])
-    if os.path.exists(EXCEL_FILE):
-        df_old = pd.read_excel(EXCEL_FILE)
-        df = pd.concat([df_old, df_new], ignore_index=True)
-    else:
-        df = df_new
-    df.to_excel(EXCEL_FILE, index=False)
-
-
-# -------- UI --------
-def main(page: ft.Page):
-    page.title = "AI Data Entry – Smart Automated Data Worker"
-    page.theme_mode = ft.ThemeMode.DARK
-    page.window_width = 900
-    page.window_height = 650
-
-    analyzed = {}
-
-    input_box = ft.TextField(
-        label="Enter text / voice / OCR input",
-        multiline=True,
-        min_lines=7,
-        expand=True
-    )
-
-    table = ft.DataTable(columns=[], rows=[])
-    status = ft.Text("")
-
-    # -------- BUTTON LOGIC --------
-    def analyze(e):
-        nonlocal analyzed
-        table.columns.clear()
-        table.rows.clear()
-
-        analyzed = extract_data(input_box.value)
-
-        if not analyzed:
-            status.value = "No data found"
-            page.update()
-            return
-
-        table.columns.extend(
-            [ft.DataColumn(ft.Text(k)) for k in analyzed.keys()]
-        )
-
-        table.rows.append(
-            ft.DataRow(cells=[ft.DataCell(ft.Text(str(v))) for v in analyzed.values()])
-        )
-
-        status.value = "Data analyzed successfully"
-        page.update()
-
-    def save(e):
-        if not analyzed:
-            status.value = "Analyze first"
-            page.update()
-            return
-        save_excel(analyzed)
-        status.value = "Saved to Excel successfully"
-        page.update()
-
-    def voice(e):
-        if not sr:
-            status.value = "Speech library not installed"
-            page.update()
-            return
-
-        r = sr.Recognizer()
-        with sr.Microphone() as source:
-            status.value = "Listening..."
-            page.update()
-            audio = r.listen(source)
-
+def save_excel(row, folder):
+    filename = f"AI_Data_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+    path = os.path.join(folder, filename)
+    new_df = pd.DataFrame([row], columns=FIELDS)
+    if os.path.exists(path):
         try:
-            text = r.recognize_google(audio)
-            input_box.value += "\n" + text
-            status.value = "Voice captured"
+            old_df = pd.read_excel(path, engine="openpyxl")
+            df = pd.concat([old_df, new_df], ignore_index=True)
         except:
-            status.value = "Voice recognition failed"
+            df = new_df
+    else:
+        df = new_df
+    df.to_excel(path, index=False, engine="openpyxl")
+    return path
 
-        page.update()
+def parse_text():
+    raw = input_box.get("1.0", END).strip()
+    if not raw:
+        messagebox.showwarning("Warning", "Paste text first!")
+        return
+    global parsed
+    parsed = extract(raw)
+    csv_preview = ",".join([str(parsed.get(f, "")) for f in FIELDS])
+    preview_box.config(state="normal")
+    preview_box.delete("1.0", END)
+    preview_box.insert(END, csv_preview)
+    preview_box.config(state="disabled")
+    status_label.config(text="Parsed successfully.")
 
-    def ocr(e):
-        if not pytesseract:
-            status.value = "OCR library not installed"
-            page.update()
-            return
+def save_data():
+    if not parsed:
+        messagebox.showwarning("Warning", "Parse text first!")
+        return
+    folder = folder_path.get()
+    os.makedirs(folder, exist_ok=True)
+    path = save_excel(parsed, folder)
+    status_label.config(text=f"Saved to {path}")
+    input_box.delete("1.0", END)
+    preview_box.config(state="normal")
+    preview_box.delete("1.0", END)
+    preview_box.config(state="disabled")
 
-        def file_picked(res):
-            if not res.files:
-                return
-            img = Image.open(res.files[0].path)
-            text = pytesseract.image_to_string(img)
-            input_box.value += "\n" + text
-            status.value = "OCR text extracted"
-            page.update()
+def open_today():
+    folder = folder_path.get()
+    filename = f"AI_Data_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+    path = os.path.join(folder, filename)
+    if os.path.exists(path): os.startfile(path)
+    else: status_label.config(text="Today's file not found.")
 
-        page.overlay.append(
-            ft.FilePicker(on_result=file_picked)
-        )
-        page.overlay[-1].pick_files(allow_multiple=False)
+# GUI
+root = Tk()
+root.title("AI Data Entry Employee")
+root.geometry("900x600")
 
-    # -------- BUTTONS --------
-    buttons = ft.Row([
-        ft.ElevatedButton("Analyze Data", on_click=analyze),
-        ft.ElevatedButton("Save to Excel", on_click=save),
-        ft.ElevatedButton("Voice Input", on_click=voice),
-        ft.ElevatedButton("OCR Image", on_click=ocr),
-    ])
+Label(root, text="AI Data Entry Employee", font=("Arial", 18)).pack()
 
-    page.add(
-        ft.Column([
-            ft.Text("AI Data Entry – Smart Automated Data Worker", size=22, weight="bold"),
-            input_box,
-            buttons,
-            ft.Text("Analyzed Output", size=16, weight="bold"),
-            table,
-            status,
-            ft.Text("Powered by KD | Publisher: Deva", size=12, opacity=0.6)
-        ], expand=True)
-    )
+input_box = Text(root, height=10, width=100)
+input_box.pack()
 
+Button(root, text="Parse", command=parse_text).pack()
 
-ft.app(target=main)
+preview_box = Text(root, height=4, width=100, state="disabled", bg="#EDEDED")
+preview_box.pack()
+
+folder_path = StringVar(value=DEFAULT_SAVE_DIR)
+Entry(root, textvariable=folder_path, width=70).pack(side=LEFT, padx=10)
+Button(root, text="Browse", command=lambda: folder_path.set(filedialog.askdirectory())).pack(side=LEFT)
+
+Button(root, text="Save to Excel", command=save_data).pack(pady=10)
+Button(root, text="Open Today File", command=open_today).pack()
+
+status_label = Label(root, text="", fg="blue")
+status_label.pack(pady=10)
+
+parsed = {}
+root.mainloop()
