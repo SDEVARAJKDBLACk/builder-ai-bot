@@ -1,2 +1,3 @@
-pandas
+pyinstaller
+tk
 openpyxl
