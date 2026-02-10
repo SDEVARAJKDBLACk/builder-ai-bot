@@ -1,0 +1,9 @@
+flet
+openai
+pandas
+openpyxl
+pdfplumber
+python-docx
+pillow
+pytesseract
+pyinstaller
