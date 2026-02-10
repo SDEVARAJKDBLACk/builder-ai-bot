@@ -1,8 +1,0 @@
-flet
-pandas
-openpyxl
-easyocr
-spacy
-torch
-openai-whisper
-pyinstaller
