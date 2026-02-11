@@ -1,9 +1,8 @@
 flet
 openai
-python-dotenv
+python-docx
+pymupdf
+pillow
 pandas
 openpyxl
-pillow
-pytesseract
-pdfplumber
-python-docx
+python-dotenv
