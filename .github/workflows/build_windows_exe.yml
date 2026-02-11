@@ -24,13 +24,13 @@ jobs:
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --noconsole --name AI_Data_Entry ^
-          --hidden-import=pdfplumber ^
-          --hidden-import=pytesseract ^
-          --hidden-import=cv2 ^
-          --hidden-import=PIL ^
-          --hidden-import=pymupdf ^
-              main.py
+          pyinstaller --onefile --noconsole --name AI_Data_Entry `
+          --hidden-import=pdfplumber `
+          --hidden-import=pytesseract `
+          --hidden-import=cv2 `
+          --hidden-import=PIL `
+          --hidden-import=pymupdf `
+               main.py
                
       - name: Upload EXE
         uses: actions/upload-artifact@v4
