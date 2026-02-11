@@ -24,12 +24,7 @@ jobs:
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --noconsole --name AI_Data_Entry ^
-          --hidden-import=flet ^
-          --hidden-import=flet_core ^
-          --hidden-import=flet_runtime ^
-          --hidden-import=flet_desktop ^
-          main.py
+          pyinstaller --onefile --noconsole --name AI_Data_Entry main.py
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
