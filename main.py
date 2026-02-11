@@ -1,4 +1,4 @@
-
+ 
 # SINGLE EXE AI DATA ENTRY APP
 import flet as ft
 import openai, os, json
