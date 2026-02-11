@@ -2,6 +2,7 @@ flet
 openai
 python-docx
 pymupdf
+pdfplumber
 pillow
 pandas
 openpyxl
