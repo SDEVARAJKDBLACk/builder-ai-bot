@@ -7,3 +7,5 @@ pillow
 pandas
 openpyxl
 python-dotenv
+pytesseract
+opencv-python
