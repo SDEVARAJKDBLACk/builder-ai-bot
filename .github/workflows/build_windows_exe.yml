@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v3
 
@@ -23,7 +24,7 @@ jobs:
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --noconsole ^
+          pyinstaller --onefile --noconsole --name AI_Data_Entry ^
           --hidden-import=flet ^
           --hidden-import=flet_core ^
           --hidden-import=flet_runtime ^
@@ -34,4 +35,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: AI_Data_Entry_EXE
-          path: dist/main.exe
+          path: dist/AI_Data_Entry.exe
