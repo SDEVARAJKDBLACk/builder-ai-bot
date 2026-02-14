@@ -1,133 +1,143 @@
 import flet as ft
-import os, sys, json, re
-from dotenv import load_dotenv
+import re, os, json
+from datetime import datetime
 import pandas as pd
-from openai import OpenAI
-import pdfplumber
-from docx import Document
-from PIL import Image
-import pytesseract
 
-load_dotenv()
+# ---------- SAFE IMPORTS ----------
+def safe_import(name):
+    try:
+        return __import__(name)
+    except:
+        return None
 
-API_KEY = os.getenv("OPENAI_API_KEY")
+ai_engine = safe_import("ai_engine")
+file_engine = safe_import("file_engine")
+learning_engine = safe_import("learning_engine")
 
-if not API_KEY:
-    print("❌ OPENAI_API_KEY not set")
-    sys.exit()
-
-client = OpenAI(api_key=API_KEY)
-
-HISTORY_FILE = "history.json"
-
-FIELDS = [
-    "name","age","gender","phone","email","address","city","pincode",
-    "product","price","amount","salary","company","date","id_number",
-    "account","bank","website","notes","other"
+# ---------- CORE FIELDS ----------
+CORE_FIELDS = [
+    "Name","Age","Gender","Phone","Email","Address","City","State","Pincode","Country",
+    "Product","Category","Company","Amount","Price","Salary","Date","OrderID","AccountNumber","Notes"
 ]
 
-def ai_extract(text):
-    prompt = f"""
-Extract structured fields from this text.
-Detect ALL possible fields automatically.
-Return JSON only.
+history_data = []
+dynamic_fields = set()
 
-Text:
-{text}
-"""
-    res = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role":"user","content":prompt}]
-    )
-    return json.loads(res.choices[0].message.content)
+# ---------- BASIC PRE-PARSER ----------
+def basic_extract(text):
+    data = {}
+    patterns = {
+        "Phone": r"\b\d{10}\b",
+        "Email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}",
+        "Pincode": r"\b\d{6}\b",
+        "Amount": r"\b\d+(?:\.\d{1,2})?\b",
+        "Date": r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"
+    }
+    for k,p in patterns.items():
+        m = re.findall(p,text)
+        if m: data[k] = ", ".join(m)
+    return data
 
-def read_file(path):
-    if path.endswith(".pdf"):
-        text=""
-        with pdfplumber.open(path) as pdf:
-            for p in pdf.pages:
-                text+=p.extract_text() or ""
-        return text
-    elif path.endswith(".docx"):
-        doc=Document(path)
-        return "\n".join([p.text for p in doc.paragraphs])
-    elif path.endswith((".png",".jpg",".jpeg")):
-        return pytesseract.image_to_string(Image.open(path))
-    else:
-        with open(path,"r",encoding="utf-8",errors="ignore") as f:
-            return f.read()
+# ---------- AI PIPELINE ----------
+def ai_pipeline(text):
+    data = {}
 
-def save_history(data):
-    hist=[]
-    if os.path.exists(HISTORY_FILE):
-        hist=json.load(open(HISTORY_FILE))
-    hist.insert(0,data)
-    hist=hist[:10]
-    json.dump(hist,open(HISTORY_FILE,"w"),indent=2)
+    # Layer 1: Basic extraction
+    data.update(basic_extract(text))
 
+    # Layer 2: AI semantic extraction
+    if ai_engine:
+        try:
+            ai_data = ai_engine.semantic_extract(text)
+            for k,v in ai_data.items():
+                data[k] = v
+        except:
+            pass
+
+    # Layer 3: Learning system
+    if learning_engine:
+        try:
+            learning_engine.learn_fields(data)
+        except:
+            pass
+
+    # Dynamic fields
+    for k in data.keys():
+        if k not in CORE_FIELDS:
+            dynamic_fields.add(k)
+
+    return data
+
+# ---------- UI ----------
 def main(page: ft.Page):
-    page.title="AI Data Entry"
-    page.theme_mode="dark"
+    page.title = "AI Data Entry – Automated Data Worker"
+    page.scroll = ft.ScrollMode.AUTO
 
-    input_box = ft.TextField(label="Enter or paste text / upload file", multiline=True, min_lines=6, expand=True)
+    input_box = ft.TextField(label="Enter / Paste Text or Upload File Content", multiline=True, min_lines=6)
 
-    result_table = ft.DataTable(columns=[
-        ft.DataColumn(ft.Text("Field")),
-        ft.DataColumn(ft.Text("Value"))
-    ], rows=[])
+    status = ft.Text("Status: Ready", color="green")
+
+    history_list = ft.ListView(expand=True)
+
+    table = ft.DataTable(columns=[], rows=[])
+
+    def rebuild_columns():
+        all_fields = CORE_FIELDS + list(dynamic_fields)
+        table.columns = [ft.DataColumn(ft.Text(f)) for f in all_fields]
+
+    def add_row(data):
+        all_fields = CORE_FIELDS + list(dynamic_fields)
+        cells = [ft.DataCell(ft.Text(str(data.get(f,"")))) for f in all_fields]
+        table.rows.append(ft.DataRow(cells=cells))
 
     def analyze(e):
-        text=input_box.value
-        if not text.strip():
-            page.snack_bar=ft.SnackBar(ft.Text("Enter some text"))
-            page.snack_bar.open=True
+        text = input_box.value.strip()
+        if not text:
+            status.value = "Status: No input"
             page.update()
             return
-        data=ai_extract(text)
-        save_history(data)
-        rows=[]
-        for k,v in data.items():
-            rows.append(ft.DataRow(cells=[
-                ft.DataCell(ft.Text(str(k))),
-                ft.DataCell(ft.Text(str(v)))
-            ]))
-        result_table.rows=rows
-        page.snack_bar=ft.SnackBar(ft.Text("✅ Data analysis successfully"))
-        page.snack_bar.open=True
+
+        result = ai_pipeline(text)
+        history_data.append(result)
+
+        rebuild_columns()
+        add_row(result)
+
+        history_list.controls.insert(0, ft.Text(json.dumps(result, ensure_ascii=False)))
+        if len(history_list.controls) > 10:
+            history_list.controls.pop()
+
+        status.value = "Status: Data analysis successfully"
         page.update()
 
     def export_excel(e):
-        rows=[]
-        for r in result_table.rows:
-            rows.append({
-                "field": r.cells[0].content.value,
-                "value": r.cells[1].content.value
-            })
-        df=pd.DataFrame(rows)
-        df.to_excel("output.xlsx",index=False)
-        page.snack_bar=ft.SnackBar(ft.Text("✅ Excel exported successfully"))
-        page.snack_bar.open=True
+        if not history_data:
+            status.value = "Status: No data"
+            page.update()
+            return
+
+        all_fields = CORE_FIELDS + list(dynamic_fields)
+        df = pd.DataFrame(history_data)
+        df = df.reindex(columns=all_fields)
+        fname = f"ai_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        df.to_excel(fname, index=False)
+
+        status.value = f"Status: Excel export successful ({fname})"
         page.update()
 
-    def pick_file(e: ft.FilePickerResultEvent):
-        if e.files:
-            text=read_file(e.files[0].path)
-            input_box.value=text
-            page.update()
-
-    file_picker=ft.FilePicker(on_result=pick_file)
-    page.overlay.append(file_picker)
-
     page.add(
-        ft.Text("AI Data Entry System",size=28,weight="bold"),
+        ft.Text("AI Data Entry – Automated Data Worker", size=22, weight="bold"),
         input_box,
         ft.Row([
-            ft.ElevatedButton("Analyze",on_click=analyze),
-            ft.ElevatedButton("Export Excel",on_click=export_excel),
-            ft.ElevatedButton("Upload File",on_click=lambda e: file_picker.pick_files())
+            ft.ElevatedButton("Analyze Data", on_click=analyze),
+            ft.ElevatedButton("Export Excel", on_click=export_excel)
         ]),
-        result_table,
-        ft.Text("Powered by KD",size=10,opacity=0.5)
+        ft.Text("Extracted Data"),
+        table,
+        ft.Text("History (Last 10)"),
+        history_list,
+        status,
+        ft.Text("Powered by KD", size=10, opacity=0.6)
     )
 
 ft.app(target=main)
