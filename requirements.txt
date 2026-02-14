@@ -1,11 +1,9 @@
 flet
 openai
-python-docx
-pymupdf
-pdfplumber
-pillow
 pandas
 openpyxl
-python-dotenv
+python-docx
+pdfplumber
 pytesseract
-opencv-python
+pillow
+pyinstaller
