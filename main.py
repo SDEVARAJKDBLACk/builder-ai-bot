@@ -1,20 +1,19 @@
 import flet as ft
-import re
-import json
-import os
-import threading
-import time
+import re, time, json, os, requests
 from datetime import datetime
 from collections import defaultdict
 import pandas as pd
 
 # =========================
-# GLOBAL MEMORY SYSTEM
+# CONFIG
+# =========================
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")  # set in system env
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+
+# =========================
+# MEMORY
 # =========================
 HISTORY = []
-LEARNED_FIELDS = {}
-AUTO_FIELDS = set()
-
 BASE_FIELDS = [
     "name","age","gender","phone","email","city","state","country","pincode",
     "product","amount","price","company","date","time","id","address",
@@ -22,34 +21,27 @@ BASE_FIELDS = [
 ]
 
 SYNONYMS = {
-    "mobile":"phone",
-    "ph":"phone",
-    "amt":"amount",
-    "cost":"amount",
-    "dob":"dob",
-    "mail":"email",
-    "location":"city"
+    "mobile":"phone","ph":"phone","amt":"amount","cost":"amount",
+    "mail":"email","location":"city"
 }
 
-SPELLING = {
-    "amout":"amount",
-    "phon":"phone",
-    "naem":"name",
-    "adress":"address"
-}
+SPELLING = {"amout":"amount","phon":"phone","naem":"name","adress":"address"}
 
 # =========================
-# AI CORE ENGINE
+# NORMALIZATION
 # =========================
-def normalize_word(word):
-    word = word.lower().strip()
-    if word in SPELLING:
-        word = SPELLING[word]
-    if word in SYNONYMS:
-        word = SYNONYMS[word]
-    return word
+def normalize(w):
+    w = w.lower().strip()
+    if w in SPELLING:
+        w = SPELLING[w]
+    if w in SYNONYMS:
+        w = SYNONYMS[w]
+    return w
 
-def detect_patterns(text):
+# =========================
+# OFFLINE AI ENGINE
+# =========================
+def offline_ai(text):
     data = defaultdict(list)
 
     patterns = {
@@ -61,12 +53,11 @@ def detect_patterns(text):
         "time": r"\b\d{2}:\d{2}\b"
     }
 
-    for field, pattern in patterns.items():
-        matches = re.findall(pattern, text)
-        if matches:
-            data[field].extend(matches)
+    for f,p in patterns.items():
+        m = re.findall(p,text)
+        if m: data[f].extend(m)
 
-    words = re.split(r"[,\s\n]+", text)
+    words = re.split(r"[ ,\n]+", text)
 
     names = []
     for i in range(len(words)-1):
@@ -75,125 +66,122 @@ def detect_patterns(text):
         elif words[i].istitle():
             names.append(words[i])
 
-    if names:
-        data["name"].extend(list(set(names)))
+    if names: data["name"].extend(list(set(names)))
+
+    for t in words:
+        n = normalize(t)
+        if n in BASE_FIELDS:
+            data[n].append(t)
 
     return data
 
 # =========================
-# FIELD LEARNING ENGINE
+# ONLINE AI ENGINE
 # =========================
-def learn_fields(data):
-    for k in data:
-        if k not in BASE_FIELDS:
-            AUTO_FIELDS.add(k)
-            LEARNED_FIELDS[k] = LEARNED_FIELDS.get(k,0)+1
+def online_ai(text):
+    if not OPENAI_API_KEY:
+        return {}
+
+    headers = {
+        "Authorization": f"Bearer {OPENAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "Extract structured fields as JSON."},
+            {"role": "user", "content": text}
+        ],
+        "temperature": 0
+    }
+
+    try:
+        r = requests.post(OPENAI_URL, headers=headers, json=body, timeout=8)
+        if r.status_code != 200:
+            return {}
+        content = r.json()["choices"][0]["message"]["content"]
+        try:
+            return json.loads(content)
+        except:
+            return {}
+    except:
+        return {}
 
 # =========================
-# AI ANALYSIS ENGINE
+# MERGE ENGINE
 # =========================
-def analyze_text(text):
-    results = defaultdict(list)
-
-    text = text.replace("\n"," ").replace("\t"," ")
-    pattern_data = detect_patterns(text)
-
-    for k,v in pattern_data.items():
-        results[k].extend(v)
-
-    tokens = re.split(r"[,\s]+", text)
-
-    for token in tokens:
-        w = normalize_word(token)
-        if w in BASE_FIELDS:
-            results[w].append(token)
-
-    learn_fields(results)
-
-    return results
+def merge(l1,l2):
+    out = defaultdict(list)
+    for k,v in l1.items(): out[k].extend(v)
+    for k,v in l2.items():
+        if isinstance(v,list): out[k].extend(v)
+        else: out[k].append(str(v))
+    return out
 
 # =========================
-# EXPORT ENGINE
+# EXPORT
 # =========================
 def export_excel(data):
     flat = {}
     for k,v in data.items():
         flat[k] = ", ".join(list(set(v)))
     df = pd.DataFrame([flat])
-    filename = f"ai_data_{int(time.time())}.xlsx"
-    df.to_excel(filename,index=False)
-    return filename
+    fn = f"ai_data_{int(time.time())}.xlsx"
+    df.to_excel(fn,index=False)
+    return fn
 
 # =========================
-# UI ENGINE (FLET)
+# UI
 # =========================
 def main(page: ft.Page):
-    page.title = "AI Data Entry – Automated Data Worker"
+    page.title = "AI Data Entry – Hybrid AI System"
     page.window_width = 1100
     page.window_height = 750
-    page.theme_mode = ft.ThemeMode.LIGHT
 
-    input_box = ft.TextField(
-        label="Enter Any Data / Paste Text / Raw Data",
-        multiline=True,
-        height=180,
-        expand=True
-    )
-
+    input_box = ft.TextField(label="Enter any data / text / message", multiline=True, height=180, expand=True)
     output = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
     history_panel = ft.Column(scroll=ft.ScrollMode.AUTO)
+    status = ft.Text("")
 
-    status_text = ft.Text("", size=12)
+    def analyze(e):
+        text = input_box.value
+        if not text.strip(): return
 
-    def update_history(data):
-        HISTORY.insert(0,data)
-        if len(HISTORY)>10:
-            HISTORY.pop()
+        l1 = offline_ai(text)
+        l2 = online_ai(text)
+        result = merge(l1,l2)
+
+        output.controls.clear()
+        for k,v in result.items():
+            output.controls.append(ft.Text(f"{k.upper()} : {list(set(v))}"))
+
+        HISTORY.insert(0,result)
+        if len(HISTORY)>10: HISTORY.pop()
 
         history_panel.controls.clear()
         for i,h in enumerate(HISTORY):
-            history_panel.controls.append(
-                ft.Text(f"{i+1}. {list(h.keys())}")
-            )
+            history_panel.controls.append(ft.Text(f"{i+1}. {list(h.keys())}"))
+
+        status.value = "✅ Data analysis successfully"
         page.update()
 
-    def analyze_click(e):
-        text = input_box.value
-        if not text.strip():
-            return
-
-        result = analyze_text(text)
-        output.controls.clear()
-
-        for k,v in result.items():
-            output.controls.append(
-                ft.Text(f"{k.upper()} : {list(set(v))}")
-            )
-
-        update_history(result)
-        status_text.value = "✅ Data analysis successfully"
+    def export_btn(e):
+        if not HISTORY: return
+        f = export_excel(HISTORY[0])
+        status.value = f"✅ Excel exported: {f}"
         page.update()
-
-    def export_click(e):
-        if not HISTORY:
-            status_text.value = "❌ No data to export"
-            page.update()
-            return
-
-        file = export_excel(HISTORY[0])
-        status_text.value = f"✅ Excel exported: {file}"
-        page.update()
-
-    analyze_btn = ft.ElevatedButton("Analyze Data", on_click=analyze_click)
-    export_btn = ft.ElevatedButton("Export Excel", on_click=export_click)
 
     page.add(
         ft.Row([
             ft.Column([
-                ft.Text("AI Data Entry – Automated Data Worker", size=22, weight="bold"),
+                ft.Text("AI Data Entry – Hybrid AI System", size=22, weight="bold"),
                 input_box,
-                ft.Row([analyze_btn, export_btn]),
-                status_text,
+                ft.Row([
+                    ft.ElevatedButton("Analyze Data", on_click=analyze),
+                    ft.ElevatedButton("Export Excel", on_click=export_btn)
+                ]),
+                status,
                 ft.Divider(),
                 ft.Text("Detected Fields"),
                 output
@@ -204,10 +192,7 @@ def main(page: ft.Page):
                 history_panel
             ], width=300)
         ]),
-        ft.Container(
-            content=ft.Text("powered by KD", size=10),
-            alignment=ft.alignment.center
-        )
+        ft.Container(content=ft.Text("powered by KD", size=10), alignment=ft.alignment.center)
     )
 
 ft.app(target=main)
