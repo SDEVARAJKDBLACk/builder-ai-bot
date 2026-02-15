@@ -1,111 +1,139 @@
 import flet as ft
-import sys
-import os
 import pandas as pd
 from datetime import datetime
 
-# SAFE EXIT
-def safe_exit():
-    sys.exit()
+# ==============================
+# AI Data Entry – Automated Data Worker
+# STABLE CORE VERSION (NO AI / NO CLOUD)
+# ==============================
 
-# -------- CORE DATA ENGINE ----------
-class DataEngine:
+HISTORY = []
+
+# ---------------- CORE ENGINE ----------------
+class CoreEngine:
     def __init__(self):
         self.history = []
 
-    def detect_fields(self, text):
-        base_fields = [
-            "Name","Age","Gender","Phone","Email","Address",
-            "DOB","ID","Amount","Date","Company","City",
-            "State","Country","Zip","Account","IFSC","PAN",
-            "Aadhar","Remarks"
-        ]
+    def simple_field_detect(self, text: str):
+        # basic token-based field detection (stable core only)
+        words = text.replace(",", " ").replace("\n", " ").split()
+        fields = []
 
-        detected = []
-        for f in base_fields:
-            if f.lower() in text.lower():
-                detected.append(f)
-
-        # unlimited dynamic detection
-        words = text.split()
         for w in words:
-            if w.istitle() and w not in detected:
-                detected.append(w)
+            if len(w) > 2 and w.isalpha():
+                fields.append(w.capitalize())
 
-        return list(set(detected))
+        return list(set(fields))
 
-    def export_excel(self, data):
-        df = pd.DataFrame(data)
-        filename = f"export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    def export_excel(self, data_dict: dict):
+        df = pd.DataFrame([data_dict])
+        filename = f"ai_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         df.to_excel(filename, index=False)
         return filename
 
 
-engine = DataEngine()
+engine = CoreEngine()
 
-# -------- UI LAYER ----------
+# ---------------- UI LAYER ----------------
 def main(page: ft.Page):
-    page.title = "AI Data Entry System"
-    page.theme_mode = ft.ThemeMode.DARK
+    page.title = "AI Data Entry – Automated Data Worker"
     page.window_width = 1200
     page.window_height = 750
+    page.theme_mode = ft.ThemeMode.LIGHT
 
-    title = ft.Text("AI DATA ENTRY APPLICATION", size=24, weight="bold")
+    title = ft.Text("AI Data Entry – Automated Data Worker", size=24, weight="bold")
 
     input_box = ft.TextField(
-        label="Paste text / extracted content here",
+        label="Paste any data / text here",
         multiline=True,
-        height=200
+        height=200,
+        expand=True
     )
 
-    fields_view = ft.Column(scroll="auto")
+    detected_fields_view = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+    history_view = ft.Column(scroll=ft.ScrollMode.AUTO, height=150)
 
-    history_view = ft.Column(scroll="auto", height=150)
+    status_text = ft.Text("")
 
-    def detect_click(e):
-        fields_view.controls.clear()
+    # -------- ACTIONS --------
+    def analyze_data(e):
+        detected_fields_view.controls.clear()
+
         text = input_box.value
-        fields = engine.detect_fields(text)
+        if not text.strip():
+            status_text.value = "❌ No input data"
+            page.update()
+            return
+
+        fields = engine.simple_field_detect(text)
 
         for f in fields:
-            fields_view.controls.append(
+            detected_fields_view.controls.append(
                 ft.TextField(label=f)
             )
 
+        # history
         engine.history.append({
             "time": datetime.now().strftime("%H:%M:%S"),
             "fields": fields
         })
 
-        history_view.controls.append(
-            ft.Text(f"[{engine.history[-1]['time']}] {fields}")
-        )
+        HISTORY.insert(0, fields)
+        if len(HISTORY) > 10:
+            HISTORY.pop()
 
+        history_view.controls.clear()
+        for i, h in enumerate(HISTORY):
+            history_view.controls.append(
+                ft.Text(f"{i+1}. {h}")
+            )
+
+        status_text.value = "✅ Data analysis successfully"
         page.update()
 
-    def export_click(e):
+    def export_excel(e):
         data = {}
-        for c in fields_view.controls:
+        for c in detected_fields_view.controls:
             data[c.label] = c.value
 
-        file = engine.export_excel([data])
-        page.snack_bar = ft.SnackBar(ft.Text(f"Excel Exported: {file}"))
-        page.snack_bar.open = True
+        if not data:
+            status_text.value = "❌ No data to export"
+            page.update()
+            return
+
+        file = engine.export_excel(data)
+        status_text.value = f"✅ Excel exported: {file}"
         page.update()
 
-    detect_btn = ft.ElevatedButton("Detect Fields", on_click=detect_click)
-    export_btn = ft.ElevatedButton("Export Excel", on_click=export_click)
+    def clear_all(e):
+        input_box.value = ""
+        detected_fields_view.controls.clear()
+        status_text.value = "🧹 Cleared"
+        page.update()
 
-    layout = ft.Column([
-        title,
-        input_box,
-        ft.Row([detect_btn, export_btn]),
-        ft.Text("Detected Fields:"),
-        fields_view,
-        ft.Text("History:"),
-        history_view
-    ])
+    # -------- BUTTONS --------
+    analyze_btn = ft.ElevatedButton("Analyze", on_click=analyze_data)
+    export_btn = ft.ElevatedButton("Export Excel", on_click=export_excel)
+    clear_btn = ft.ElevatedButton("Clear", on_click=clear_all)
 
-    page.add(layout)
+    # -------- LAYOUT --------
+    page.add(
+        ft.Column([
+            title,
+            input_box,
+            ft.Row([analyze_btn, export_btn, clear_btn]),
+            status_text,
+            ft.Divider(),
+            ft.Text("Detected Fields", size=16, weight="bold"),
+            detected_fields_view,
+            ft.Divider(),
+            ft.Text("History (Last 10)", size=16, weight="bold"),
+            history_view,
+            ft.Container(
+                content=ft.Text("powered by KD", size=10),
+                alignment=ft.alignment.center
+            )
+        ], expand=True)
+    )
 
 ft.app(target=main)
