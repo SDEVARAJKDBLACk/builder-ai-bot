@@ -1,143 +1,213 @@
 import flet as ft
-import re, os, json
+import re
+import json
+import os
+import threading
+import time
 from datetime import datetime
+from collections import defaultdict
 import pandas as pd
 
-# ---------- SAFE IMPORTS ----------
-def safe_import(name):
-    try:
-        return __import__(name)
-    except:
-        return None
+# =========================
+# GLOBAL MEMORY SYSTEM
+# =========================
+HISTORY = []
+LEARNED_FIELDS = {}
+AUTO_FIELDS = set()
 
-ai_engine = safe_import("ai_engine")
-file_engine = safe_import("file_engine")
-learning_engine = safe_import("learning_engine")
-
-# ---------- CORE FIELDS ----------
-CORE_FIELDS = [
-    "Name","Age","Gender","Phone","Email","Address","City","State","Pincode","Country",
-    "Product","Category","Company","Amount","Price","Salary","Date","OrderID","AccountNumber","Notes"
+BASE_FIELDS = [
+    "name","age","gender","phone","email","city","state","country","pincode",
+    "product","amount","price","company","date","time","id","address",
+    "dob","account","order"
 ]
 
-history_data = []
-dynamic_fields = set()
+SYNONYMS = {
+    "mobile":"phone",
+    "ph":"phone",
+    "amt":"amount",
+    "cost":"amount",
+    "dob":"dob",
+    "mail":"email",
+    "location":"city"
+}
 
-# ---------- BASIC PRE-PARSER ----------
-def basic_extract(text):
-    data = {}
+SPELLING = {
+    "amout":"amount",
+    "phon":"phone",
+    "naem":"name",
+    "adress":"address"
+}
+
+# =========================
+# AI CORE ENGINE
+# =========================
+def normalize_word(word):
+    word = word.lower().strip()
+    if word in SPELLING:
+        word = SPELLING[word]
+    if word in SYNONYMS:
+        word = SYNONYMS[word]
+    return word
+
+def detect_patterns(text):
+    data = defaultdict(list)
+
     patterns = {
-        "Phone": r"\b\d{10}\b",
-        "Email": r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}",
-        "Pincode": r"\b\d{6}\b",
-        "Amount": r"\b\d+(?:\.\d{1,2})?\b",
-        "Date": r"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"
+        "phone": r"\b\d{10}\b",
+        "pincode": r"\b\d{6}\b",
+        "email": r"\b[\w\.-]+@[\w\.-]+\.\w+\b",
+        "amount": r"\b\d+(?:\.\d+)?\b",
+        "date": r"\b\d{2}[/-]\d{2}[/-]\d{4}\b",
+        "time": r"\b\d{2}:\d{2}\b"
     }
-    for k,p in patterns.items():
-        m = re.findall(p,text)
-        if m: data[k] = ", ".join(m)
-    return data
 
-# ---------- AI PIPELINE ----------
-def ai_pipeline(text):
-    data = {}
+    for field, pattern in patterns.items():
+        matches = re.findall(pattern, text)
+        if matches:
+            data[field].extend(matches)
 
-    # Layer 1: Basic extraction
-    data.update(basic_extract(text))
+    words = re.split(r"[,\s\n]+", text)
 
-    # Layer 2: AI semantic extraction
-    if ai_engine:
-        try:
-            ai_data = ai_engine.semantic_extract(text)
-            for k,v in ai_data.items():
-                data[k] = v
-        except:
-            pass
+    names = []
+    for i in range(len(words)-1):
+        if words[i].istitle() and words[i+1].istitle():
+            names.append(words[i]+" "+words[i+1])
+        elif words[i].istitle():
+            names.append(words[i])
 
-    # Layer 3: Learning system
-    if learning_engine:
-        try:
-            learning_engine.learn_fields(data)
-        except:
-            pass
-
-    # Dynamic fields
-    for k in data.keys():
-        if k not in CORE_FIELDS:
-            dynamic_fields.add(k)
+    if names:
+        data["name"].extend(list(set(names)))
 
     return data
 
-# ---------- UI ----------
+# =========================
+# FIELD LEARNING ENGINE
+# =========================
+def learn_fields(data):
+    for k in data:
+        if k not in BASE_FIELDS:
+            AUTO_FIELDS.add(k)
+            LEARNED_FIELDS[k] = LEARNED_FIELDS.get(k,0)+1
+
+# =========================
+# AI ANALYSIS ENGINE
+# =========================
+def analyze_text(text):
+    results = defaultdict(list)
+
+    text = text.replace("\n"," ").replace("\t"," ")
+    pattern_data = detect_patterns(text)
+
+    for k,v in pattern_data.items():
+        results[k].extend(v)
+
+    tokens = re.split(r"[,\s]+", text)
+
+    for token in tokens:
+        w = normalize_word(token)
+        if w in BASE_FIELDS:
+            results[w].append(token)
+
+    learn_fields(results)
+
+    return results
+
+# =========================
+# EXPORT ENGINE
+# =========================
+def export_excel(data):
+    flat = {}
+    for k,v in data.items():
+        flat[k] = ", ".join(list(set(v)))
+    df = pd.DataFrame([flat])
+    filename = f"ai_data_{int(time.time())}.xlsx"
+    df.to_excel(filename,index=False)
+    return filename
+
+# =========================
+# UI ENGINE (FLET)
+# =========================
 def main(page: ft.Page):
     page.title = "AI Data Entry – Automated Data Worker"
-    page.scroll = ft.ScrollMode.AUTO
+    page.window_width = 1100
+    page.window_height = 750
+    page.theme_mode = ft.ThemeMode.LIGHT
 
-    input_box = ft.TextField(label="Enter / Paste Text or Upload File Content", multiline=True, min_lines=6)
+    input_box = ft.TextField(
+        label="Enter Any Data / Paste Text / Raw Data",
+        multiline=True,
+        height=180,
+        expand=True
+    )
 
-    status = ft.Text("Status: Ready", color="green")
+    output = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+    history_panel = ft.Column(scroll=ft.ScrollMode.AUTO)
 
-    history_list = ft.ListView(expand=True)
+    status_text = ft.Text("", size=12)
 
-    table = ft.DataTable(columns=[], rows=[])
+    def update_history(data):
+        HISTORY.insert(0,data)
+        if len(HISTORY)>10:
+            HISTORY.pop()
 
-    def rebuild_columns():
-        all_fields = CORE_FIELDS + list(dynamic_fields)
-        table.columns = [ft.DataColumn(ft.Text(f)) for f in all_fields]
+        history_panel.controls.clear()
+        for i,h in enumerate(HISTORY):
+            history_panel.controls.append(
+                ft.Text(f"{i+1}. {list(h.keys())}")
+            )
+        page.update()
 
-    def add_row(data):
-        all_fields = CORE_FIELDS + list(dynamic_fields)
-        cells = [ft.DataCell(ft.Text(str(data.get(f,"")))) for f in all_fields]
-        table.rows.append(ft.DataRow(cells=cells))
+    def analyze_click(e):
+        text = input_box.value
+        if not text.strip():
+            return
 
-    def analyze(e):
-        text = input_box.value.strip()
-        if not text:
-            status.value = "Status: No input"
+        result = analyze_text(text)
+        output.controls.clear()
+
+        for k,v in result.items():
+            output.controls.append(
+                ft.Text(f"{k.upper()} : {list(set(v))}")
+            )
+
+        update_history(result)
+        status_text.value = "✅ Data analysis successfully"
+        page.update()
+
+    def export_click(e):
+        if not HISTORY:
+            status_text.value = "❌ No data to export"
             page.update()
             return
 
-        result = ai_pipeline(text)
-        history_data.append(result)
-
-        rebuild_columns()
-        add_row(result)
-
-        history_list.controls.insert(0, ft.Text(json.dumps(result, ensure_ascii=False)))
-        if len(history_list.controls) > 10:
-            history_list.controls.pop()
-
-        status.value = "Status: Data analysis successfully"
+        file = export_excel(HISTORY[0])
+        status_text.value = f"✅ Excel exported: {file}"
         page.update()
 
-    def export_excel(e):
-        if not history_data:
-            status.value = "Status: No data"
-            page.update()
-            return
-
-        all_fields = CORE_FIELDS + list(dynamic_fields)
-        df = pd.DataFrame(history_data)
-        df = df.reindex(columns=all_fields)
-        fname = f"ai_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        df.to_excel(fname, index=False)
-
-        status.value = f"Status: Excel export successful ({fname})"
-        page.update()
+    analyze_btn = ft.ElevatedButton("Analyze Data", on_click=analyze_click)
+    export_btn = ft.ElevatedButton("Export Excel", on_click=export_click)
 
     page.add(
-        ft.Text("AI Data Entry – Automated Data Worker", size=22, weight="bold"),
-        input_box,
         ft.Row([
-            ft.ElevatedButton("Analyze Data", on_click=analyze),
-            ft.ElevatedButton("Export Excel", on_click=export_excel)
+            ft.Column([
+                ft.Text("AI Data Entry – Automated Data Worker", size=22, weight="bold"),
+                input_box,
+                ft.Row([analyze_btn, export_btn]),
+                status_text,
+                ft.Divider(),
+                ft.Text("Detected Fields"),
+                output
+            ], expand=True),
+            ft.VerticalDivider(),
+            ft.Column([
+                ft.Text("History (Last 10)", size=16, weight="bold"),
+                history_panel
+            ], width=300)
         ]),
-        ft.Text("Extracted Data"),
-        table,
-        ft.Text("History (Last 10)"),
-        history_list,
-        status,
-        ft.Text("Powered by KD", size=10, opacity=0.6)
+        ft.Container(
+            content=ft.Text("powered by KD", size=10),
+            alignment=ft.alignment.center
+        )
     )
 
 ft.app(target=main)
