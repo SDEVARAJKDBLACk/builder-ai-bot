@@ -1,8 +1,9 @@
-name: Build AI Data Entry EXE
+name: Build AI Data Entry Stable Core EXE
 
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -19,18 +20,15 @@ jobs:
 
     - name: Install dependencies
       run: |
-        pip install --upgrade pip
+        python -m pip install --upgrade pip
         pip install -r requirements.txt
 
     - name: Build EXE
       run: |
-        pyinstaller --onefile --noconsole ^
-        --hidden-import=flet ^
-        --hidden-import=flet_desktop ^
-        main.py
+        pyinstaller --onefile --noconsole main.py
 
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: AI_Data_Entry_EXE
+        name: AI_Data_Entry_Stable_Core_EXE
         path: dist/main.exe
