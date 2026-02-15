@@ -1,4 +1,10 @@
 flet
+flet-desktop
+openai
+pdfplumber
+pytesseract
+pillow
+python-docx
 pandas
 openpyxl
-requests
+pyinstaller
