@@ -1,9 +1,3 @@
 flet
-openai
 pandas
 openpyxl
-python-docx
-pdfplumber
-pytesseract
-pillow
-pyinstaller
