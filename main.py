@@ -1,120 +1,213 @@
 import flet as ft
-import pandas as pd
+import re
+import json
+import os
+import threading
+import time
 from datetime import datetime
+from collections import defaultdict
+import pandas as pd
 
-# ==============================
-# AI Data Entry – Automated Data Worker
-# STABLE CORE VERSION
-# ==============================
-
+# =========================
+# GLOBAL MEMORY SYSTEM
+# =========================
 HISTORY = []
+LEARNED_FIELDS = {}
+AUTO_FIELDS = set()
 
-class CoreEngine:
-    def __init__(self):
-        self.history = []
+BASE_FIELDS = [
+    "name","age","gender","phone","email","city","state","country","pincode",
+    "product","amount","price","company","date","time","id","address",
+    "dob","account","order"
+]
 
-    def simple_field_detect(self, text: str):
-        words = text.replace(",", " ").replace("\n", " ").split()
-        fields = []
+SYNONYMS = {
+    "mobile":"phone",
+    "ph":"phone",
+    "amt":"amount",
+    "cost":"amount",
+    "dob":"dob",
+    "mail":"email",
+    "location":"city"
+}
 
-        for w in words:
-            if len(w) > 2 and w.isalpha():
-                fields.append(w.capitalize())
+SPELLING = {
+    "amout":"amount",
+    "phon":"phone",
+    "naem":"name",
+    "adress":"address"
+}
 
-        return list(set(fields))
+# =========================
+# AI CORE ENGINE
+# =========================
+def normalize_word(word):
+    word = word.lower().strip()
+    if word in SPELLING:
+        word = SPELLING[word]
+    if word in SYNONYMS:
+        word = SYNONYMS[word]
+    return word
 
-    def export_excel(self, data_dict: dict):
-        df = pd.DataFrame([data_dict])
-        filename = f"ai_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-        df.to_excel(filename, index=False)
-        return filename
+def detect_patterns(text):
+    data = defaultdict(list)
 
+    patterns = {
+        "phone": r"\b\d{10}\b",
+        "pincode": r"\b\d{6}\b",
+        "email": r"\b[\w\.-]+@[\w\.-]+\.\w+\b",
+        "amount": r"\b\d+(?:\.\d+)?\b",
+        "date": r"\b\d{2}[/-]\d{2}[/-]\d{4}\b",
+        "time": r"\b\d{2}:\d{2}\b"
+    }
 
-engine = CoreEngine()
+    for field, pattern in patterns.items():
+        matches = re.findall(pattern, text)
+        if matches:
+            data[field].extend(matches)
 
+    words = re.split(r"[,\s\n]+", text)
+
+    names = []
+    for i in range(len(words)-1):
+        if words[i].istitle() and words[i+1].istitle():
+            names.append(words[i]+" "+words[i+1])
+        elif words[i].istitle():
+            names.append(words[i])
+
+    if names:
+        data["name"].extend(list(set(names)))
+
+    return data
+
+# =========================
+# FIELD LEARNING ENGINE
+# =========================
+def learn_fields(data):
+    for k in data:
+        if k not in BASE_FIELDS:
+            AUTO_FIELDS.add(k)
+            LEARNED_FIELDS[k] = LEARNED_FIELDS.get(k,0)+1
+
+# =========================
+# AI ANALYSIS ENGINE
+# =========================
+def analyze_text(text):
+    results = defaultdict(list)
+
+    text = text.replace("\n"," ").replace("\t"," ")
+    pattern_data = detect_patterns(text)
+
+    for k,v in pattern_data.items():
+        results[k].extend(v)
+
+    tokens = re.split(r"[,\s]+", text)
+
+    for token in tokens:
+        w = normalize_word(token)
+        if w in BASE_FIELDS:
+            results[w].append(token)
+
+    learn_fields(results)
+
+    return results
+
+# =========================
+# EXPORT ENGINE
+# =========================
+def export_excel(data):
+    flat = {}
+    for k,v in data.items():
+        flat[k] = ", ".join(list(set(v)))
+    df = pd.DataFrame([flat])
+    filename = f"ai_data_{int(time.time())}.xlsx"
+    df.to_excel(filename,index=False)
+    return filename
+
+# =========================
+# UI ENGINE (FLET)
+# =========================
 def main(page: ft.Page):
     page.title = "AI Data Entry – Automated Data Worker"
-    page.window_width = 1200
+    page.window_width = 1100
     page.window_height = 750
-
-    title = ft.Text("AI Data Entry – Automated Data Worker", size=24, weight="bold")
+    page.theme_mode = ft.ThemeMode.LIGHT
 
     input_box = ft.TextField(
-        label="Paste any data / text here",
+        label="Enter Any Data / Paste Text / Raw Data",
         multiline=True,
-        height=200,
+        height=180,
         expand=True
     )
 
-    detected_fields_view = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
-    history_view = ft.Column(scroll=ft.ScrollMode.AUTO, height=150)
+    output = ft.Column(scroll=ft.ScrollMode.AUTO, expand=True)
+    history_panel = ft.Column(scroll=ft.ScrollMode.AUTO)
 
-    status_text = ft.Text("")
+    status_text = ft.Text("", size=12)
 
-    def analyze_data(e):
-        detected_fields_view.controls.clear()
-        text = input_box.value
-
-        if not text.strip():
-            status_text.value = "❌ No input data"
-            page.update()
-            return
-
-        fields = engine.simple_field_detect(text)
-
-        for f in fields:
-            detected_fields_view.controls.append(ft.TextField(label=f))
-
-        HISTORY.insert(0, fields)
-        if len(HISTORY) > 10:
+    def update_history(data):
+        HISTORY.insert(0,data)
+        if len(HISTORY)>10:
             HISTORY.pop()
 
-        history_view.controls.clear()
-        for i, h in enumerate(HISTORY):
-            history_view.controls.append(ft.Text(f"{i+1}. {h}"))
-
-        status_text.value = "✅ Data analyzed"
+        history_panel.controls.clear()
+        for i,h in enumerate(HISTORY):
+            history_panel.controls.append(
+                ft.Text(f"{i+1}. {list(h.keys())}")
+            )
         page.update()
 
-    def export_excel(e):
-        data = {}
-        for c in detected_fields_view.controls:
-            data[c.label] = c.value
+    def analyze_click(e):
+        text = input_box.value
+        if not text.strip():
+            return
 
-        if not data:
+        result = analyze_text(text)
+        output.controls.clear()
+
+        for k,v in result.items():
+            output.controls.append(
+                ft.Text(f"{k.upper()} : {list(set(v))}")
+            )
+
+        update_history(result)
+        status_text.value = "✅ Data analysis successfully"
+        page.update()
+
+    def export_click(e):
+        if not HISTORY:
             status_text.value = "❌ No data to export"
             page.update()
             return
 
-        file = engine.export_excel(data)
+        file = export_excel(HISTORY[0])
         status_text.value = f"✅ Excel exported: {file}"
         page.update()
 
-    def clear_all(e):
-        input_box.value = ""
-        detected_fields_view.controls.clear()
-        status_text.value = "🧹 Cleared"
-        page.update()
-
-    analyze_btn = ft.ElevatedButton("Analyze", on_click=analyze_data)
-    export_btn = ft.ElevatedButton("Export Excel", on_click=export_excel)
-    clear_btn = ft.ElevatedButton("Clear", on_click=clear_all)
+    analyze_btn = ft.ElevatedButton("Analyze Data", on_click=analyze_click)
+    export_btn = ft.ElevatedButton("Export Excel", on_click=export_click)
 
     page.add(
-        ft.Column([
-            title,
-            input_box,
-            ft.Row([analyze_btn, export_btn, clear_btn]),
-            status_text,
-            ft.Divider(),
-            ft.Text("Detected Fields", size=16, weight="bold"),
-            detected_fields_view,
-            ft.Divider(),
-            ft.Text("History (Last 10)", size=16, weight="bold"),
-            history_view
-        ], expand=True)
+        ft.Row([
+            ft.Column([
+                ft.Text("AI Data Entry – Automated Data Worker", size=22, weight="bold"),
+                input_box,
+                ft.Row([analyze_btn, export_btn]),
+                status_text,
+                ft.Divider(),
+                ft.Text("Detected Fields"),
+                output
+            ], expand=True),
+            ft.VerticalDivider(),
+            ft.Column([
+                ft.Text("History (Last 10)", size=16, weight="bold"),
+                history_panel
+            ], width=300)
+        ]),
+        ft.Container(
+            content=ft.Text("powered by KD", size=10),
+            alignment=ft.alignment.center
+        )
     )
 
-# 🔥 IMPORTANT FIX:
-# Use WEB_BROWSER mode to avoid flet_desktop crash
-ft.app(target=main, view=ft.WEB_BROWSER)
+ft.app(target=main)
