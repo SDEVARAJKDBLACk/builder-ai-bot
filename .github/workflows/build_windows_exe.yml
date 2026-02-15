@@ -28,5 +28,5 @@ jobs:
     - name: Upload EXE
       uses: actions/upload-artifact@v3
       with:
-        name: ai-data-entry-exe
+        name: AI_Data_Entry_EXE
         path: dist/main.exe
