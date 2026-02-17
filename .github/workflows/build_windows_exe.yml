@@ -3,20 +3,31 @@ name: Build AI Data Entry EXE
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-python@v5
+    - uses: actions/checkout@v3
+
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        python-version: "3.10"
-    - run: pip install -r requirements.txt
-    - run: pyinstaller --onefile ui_app.py
-    - uses: actions/upload-artifact@v4
+        python-version: '3.10'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build EXE
+      run: |
+        pyinstaller --onefile --noconsole --name "AI_Data_Entry" main.py
+
+    - name: Upload EXE
+      uses: actions/upload-artifact@v3
       with:
         name: AI_Data_Entry_EXE
-        path: dist/ui_app.exe
-        
+        path: dist/AI_Data_Entry.exe
