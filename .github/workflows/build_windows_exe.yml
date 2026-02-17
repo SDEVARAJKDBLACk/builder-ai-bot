@@ -3,6 +3,7 @@ name: Build AI Data Entry EXE
 on:
   push:
     branches: [ "main" ]
+  workflow_dispatch:   # 👈 THIS ENABLES MANUAL RUN BUTTON
 
 jobs:
   build:
