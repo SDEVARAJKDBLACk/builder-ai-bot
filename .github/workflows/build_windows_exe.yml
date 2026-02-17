@@ -1,14 +1,14 @@
-name: Build AI Data Entry EXE
+
+name: Build AI Data Entry EXE Phase3
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:   # 👈 THIS ENABLES MANUAL RUN BUTTON
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
     - uses: actions/checkout@v4
 
@@ -17,18 +17,18 @@ jobs:
       with:
         python-version: '3.10'
 
-    - name: Install dependencies
+    - name: Install deps
       run: |
-        python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
 
     - name: Build EXE
       run: |
-        pyinstaller --onefile --noconsole --name "AI_Data_Entry" main.py
+        pyinstaller --onefile app.py --name AI_Data_Entry_Phase3
 
     - name: Upload EXE
       uses: actions/upload-artifact@v4
       with:
-        name: AI_Data_Entry_EXE
-        path: dist/AI_Data_Entry.exe
+        name: AI_Data_Entry_Phase3_EXE
+        path: dist/AI_Data_Entry_Phase3.exe
+        
