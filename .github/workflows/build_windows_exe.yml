@@ -1,34 +1,33 @@
-
-name: Build AI Data Entry EXE Phase3
+name: Build AI Data Entry EXE
 
 on:
   push:
     branches: [ "main" ]
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: windows-latest
+    env:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
 
-    - name: Setup Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-    - name: Install deps
-      run: |
-        pip install -r requirements.txt
-        pip install pyinstaller
+      - name: Install deps
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller
 
-    - name: Build EXE
-      run: |
-        pyinstaller --onefile app.py --name AI_Data_Entry_Phase3
+      - name: Build exe
+        run: pyinstaller --onefile --noconsole main.py
 
-    - name: Upload EXE
-      uses: actions/upload-artifact@v4
-      with:
-        name: AI_Data_Entry_Phase3_EXE
-        path: dist/AI_Data_Entry_Phase3.exe
-        
+      - name: Upload exe
+        uses: actions/upload-artifact@v3
+        with:
+          name: AI_Data_Entry_EXE
+          path: dist/main.exe
