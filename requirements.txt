@@ -1,11 +1,4 @@
-
-flet
-fastapi
-uvicorn
-openai
 requests
-python-multipart
 pandas
 openpyxl
-pytesseract
-pillow
+tk
