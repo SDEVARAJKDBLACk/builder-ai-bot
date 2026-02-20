@@ -22,7 +22,7 @@ jobs:
 
       - name: Build EXE
         run: |
-          pyinstaller --onefile --noconsole main.py --name AI_Data_Entry_Gemini_Flet
+          pyinstaller --onefile --noconsole --hidden-import=flet_desktop main.py --name AI_Data_Entry_Gemini_Flet
 
       - name: Upload EXE
         uses: actions/upload-artifact@v4
