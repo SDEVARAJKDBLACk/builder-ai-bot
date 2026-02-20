@@ -1,7 +1,10 @@
-flet
-flet-desktop
 google-generativeai
-python-dotenv
+pytesseract
+Pillow
+spacy
 pandas
 openpyxl
+python-docx
+PyPDF2
 pyinstaller
+flet
