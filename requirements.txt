@@ -1,6 +1,6 @@
-openai>=1.0.0
+flet
+google-generativeai
 python-dotenv
 pandas
 openpyxl
-tk
 pyinstaller
