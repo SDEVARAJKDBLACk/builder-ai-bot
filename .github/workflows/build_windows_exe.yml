@@ -1,31 +1,36 @@
-name: Build Flet Gemini AI EXE
+name: Build Windows EXE with Flet
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ main ]
 
 jobs:
   build:
     runs-on: windows-latest
-
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install Dependencies
-        run: |
-          pip install -r requirements.txt
-
-      - name: Build EXE
-        run: |
-          pyinstaller --onefile --noconsole --hidden-import=flet_desktop main.py --name AI_Data_Entry_Gemini_Flet
-
-      - name: Upload EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: AI_Data_Entry_Gemini_Flet_EXE
-          path: dist/AI_Data_Entry_Gemini_Flet.exe
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Ensure spaCy model is available for offline use during build
+        python -m spacy download en_core_web_sm
+        
+    - name: Build EXE
+      run: |
+        # Use --noconsole if you want a purely GUI app without a cmd window
+        # --onefile creates a single executable
+        pyinstaller --onefile --noconsole main.py
+        
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: DataEntryAI-Flet-EXE
+        path: dist/main.exe
+        
