@@ -1,83 +1,126 @@
-main.py (FIXED VERSION - SYNTAX ERROR REMOVED)
+import flet as ft
+import google.generativeai as genai
+import json
+import pandas as pd
+import os
+from dotenv import load_dotenv
 
-import flet as ft import google.generativeai as genai import pandas as pd from dotenv import load_dotenv import os import json
+# Load API Key
+load_dotenv()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-Load API Key
+genai.configure(api_key=GEMINI_API_KEY)
+model = genai.GenerativeModel("gemini-1.5-flash")
 
-load_dotenv() GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+def analyze_with_ai(text):
+    prompt = f"""
+You are an AI data extraction engine.
 
-genai.configure(api_key=GEMINI_API_KEY) model = genai.GenerativeModel("gemini-pro")
+Extract structured fields from the unstructured text.
+Auto-detect fields like:
+name, age, gender, phone, alternate_phone, email, address, city, state, country, pincode,
+company, role, qualification, dob, id_number, reference_name, notes, custom_fields.
 
----------- AI FUNCTION ----------
+Return ONLY valid JSON.
+No explanation.
+No markdown.
+Only JSON.
 
-def ai_extract(text): prompt = f""" Extract structured fields from the following unstructured data. Auto-detect fields. Return JSON only.
-
-Text:
+Input:
 {text}
 """
-try:
+
     response = model.generate_content(prompt)
-    raw = response.text
-    start = raw.find("{")
-    end = raw.rfind("}")
-    json_data = raw[start:end+1]
-    return json.loads(json_data)
-except Exception as e:
-    return {"error": str(e)}
+    raw = response.text.strip()
 
----------- UI ----------
+    # Clean code block if Gemini adds it
+    if raw.startswith("```"):
+        raw = raw.replace("```json", "").replace("```", "").strip()
 
-def main(page: ft.Page): page.title = "AI Data Entry - Gemini" page.window_width = 1000 page.window_height = 700
+    return json.loads(raw)
 
-input_box = ft.TextField(
-    multiline=True,
-    min_lines=8,
-    max_lines=12,
-    expand=True,
-    label="Paste unstructured data here"
-)
+def main(page: ft.Page):
+    page.title = "AI Data Entry – Smart Automated Data Worker"
+    page.window_width = 1000
+    page.window_height = 750
+    page.scroll = ft.ScrollMode.AUTO
 
-output_box = ft.TextField(
-    multiline=True,
-    min_lines=10,
-    max_lines=15,
-    expand=True,
-    label="Analyzed Output"
-)
+    input_box = ft.TextField(
+        multiline=True,
+        min_lines=10,
+        max_lines=12,
+        expand=True,
+        label="Enter raw text / notes / messages / content",
+    )
 
-extracted_data = {}
+    output_box = ft.TextField(
+        multiline=True,
+        min_lines=10,
+        max_lines=12,
+        expand=True,
+        label="Analyzed Output (JSON)",
+        read_only=True,
+    )
 
-def analyze(e):
-    nonlocal extracted_data
-    text = input_box.value
-    if not text:
-        output_box.value = "No input provided"
-    else:
-        data = ai_extract(text)
-        extracted_data = data
-        output_box.value = json.dumps(data, indent=4)
-    page.update()
+    extracted_data = {}
 
-def save_excel(e):
-    if not extracted_data:
-        output_box.value = "No data to export"
-    else:
-        df = pd.DataFrame([extracted_data])
-        df.to_excel("ai_data_output.xlsx", index=False)
-        output_box.value = "Saved as ai_data_output.xlsx"
-    page.update()
+    def analyze_click(e):
+        nonlocal extracted_data
+        try:
+            text = input_box.value.strip()
+            if not text:
+                output_box.value = "Please enter data"
+                page.update()
+                return
 
-page.add(
-    ft.Column([
-        ft.Text("AI Data Entry - Smart Automated Data Worker", size=24, weight=ft.FontWeight.BOLD),
-        input_box,
-        ft.Row([
-            ft.ElevatedButton("Analyze Data", on_click=analyze),
-            ft.ElevatedButton("Save to Excel", on_click=save_excel)
-        ]),
-        ft.Text("Analyzed Output", size=20, weight=ft.FontWeight.BOLD),
-        output_box,
-    ], expand=True)
-)
+            result = analyze_with_ai(text)
+            extracted_data = result
+            output_box.value = json.dumps(result, indent=4)
+        except Exception as err:
+            output_box.value = f"AI Error:\n{str(err)}"
+
+        page.update()
+
+    def save_excel(e):
+        try:
+            if not extracted_data:
+                output_box.value = "No analyzed data to save"
+                page.update()
+                return
+
+            df = pd.DataFrame([extracted_data])
+            df.to_excel("ai_data_output.xlsx", index=False)
+            output_box.value = "Saved to ai_data_output.xlsx successfully"
+        except Exception as err:
+            output_box.value = f"Excel Error:\n{str(err)}"
+
+        page.update()
+
+    header = ft.Text(
+        "AI Data Entry – Smart Automated Data Worker",
+        size=26,
+        weight=ft.FontWeight.BOLD,
+    )
+
+    analyze_btn = ft.ElevatedButton("Analyze Data", on_click=analyze_click)
+    save_btn = ft.ElevatedButton("Save to Excel", on_click=save_excel)
+
+    page.add(
+        ft.Column(
+            [
+                header,
+                ft.Container(height=10),
+                input_box,
+                ft.Container(height=10),
+                ft.Row([analyze_btn, save_btn]),
+                ft.Container(height=15),
+                ft.Text("Analyzed Output", size=20, weight=ft.FontWeight.BOLD),
+                output_box,
+                ft.Container(height=10),
+                ft.Text("Powered by KD | Publisher: Deva", size=12),
+            ],
+            expand=True,
+        )
+    )
 
 ft.app(target=main)
