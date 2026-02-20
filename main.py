@@ -4,7 +4,6 @@ import json
 import pandas as pd
 import pytesseract
 from PIL import Image
-import spacy
 import docx
 import PyPDF2
 import google.generativeai as genai
