@@ -1,4 +1,5 @@
 flet
+flet-desktop
 google-generativeai
 python-dotenv
 pandas
