@@ -1,3 +1,5 @@
+import flet
+flet.app = flet.app
 import flet as ft
 import google.generativeai as genai
 import json
