@@ -1,170 +1,125 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from openai import OpenAI
-import json
-import pandas as pd
-import os
-from dotenv import load_dotenv
+import flet as ft import google.generativeai as genai import json import pandas as pd import os from dotenv import load_dotenv
 
-# ================= ENV =================
-load_dotenv()
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+================= ENV =================
 
-# ================= AI ENGINE =================
-def ai_analyze(text):
-    prompt = f"""
-You are an enterprise AI data entry system.
+load_dotenv() GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 
-Task:
-Analyze any unstructured input and extract structured fields automatically.
+genai.configure(api_key=GEMINI_KEY) model = genai.GenerativeModel("gemini-1.5-flash")
+
+================= AI ENGINE =================
+
+def ai_analyze(text): prompt = f""" Extract structured data from the following unstructured input.
 
 Rules:
-- Auto-detect fields
-- Create meaningful field names
-- Max 20 fields
-- Return ONLY valid JSON
-- No explanation text
-- No markdown
 
-User Input:
-{text}
-"""
+Auto detect fields
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "You are a professional AI data extraction system."},
-            {"role": "user", "content": prompt}
-        ],
-        temperature=0.1
-    )
+Create meaningful field names
 
-    return response.choices[0].message.content
+Max 20 fields
 
-# ================= UI =================
-class AIDataEntryApp:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("AI Data Entry – Smart Automated Data Worker")
-        self.root.geometry("1200x750")
-        self.root.configure(bg="#f5f5f5")
+Output ONLY valid JSON
 
-        # Title
-        title = tk.Label(
-            root,
-            text="AI Data Entry – Smart Automated Data Worker",
-            font=("Segoe UI", 22, "bold"),
-            bg="#f5f5f5"
-        )
-        title.pack(pady=15)
+No explanation
 
-        # Input Frame
-        input_frame = tk.Frame(root, bg="#f5f5f5")
-        input_frame.pack(pady=10)
+No markdown
 
-        self.input_box = tk.Text(
-            input_frame,
-            height=10,
-            width=120,
-            font=("Consolas", 11),
-            bd=1,
-            relief="solid"
-        )
-        self.input_box.pack()
+No formatting text
 
-        # Buttons
-        btn_frame = tk.Frame(root, bg="#f5f5f5")
-        btn_frame.pack(pady=15)
 
-        self.analyze_btn = tk.Button(
-            btn_frame,
-            text="Analyze Data",
-            width=18,
-            height=2,
-            font=("Segoe UI", 10, "bold"),
-            command=self.analyze
-        )
-        self.analyze_btn.pack(side="left", padx=15)
+Input: {text} """ response = model.generate_content(prompt) return response.text.strip()
 
-        self.save_btn = tk.Button(
-            btn_frame,
-            text="Save to Excel",
-            width=18,
-            height=2,
-            font=("Segoe UI", 10, "bold"),
-            command=self.export_excel
-        )
-        self.save_btn.pack(side="left", padx=15)
+================= FLET UI =================
 
-        # Output Title
-        out_title = tk.Label(
-            root,
-            text="Analyzed Output",
-            font=("Segoe UI", 16, "bold"),
-            bg="#f5f5f5"
-        )
-        out_title.pack(pady=5)
+def main(page: ft.Page): page.title = "AI Data Entry – Gemini Smart Worker" page.theme_mode = ft.ThemeMode.LIGHT page.window_width = 1200 page.window_height = 800
 
-        # Output Box
-        self.output_box = tk.Text(
-            root,
-            height=18,
-            width=120,
-            font=("Consolas", 11),
-            bd=1,
-            relief="solid"
-        )
-        self.output_box.pack(pady=10)
+structured_data = {}
 
-        self.structured_data = {}
+title = ft.Text("AI Data Entry – Smart Automated Data Worker", size=26, weight=ft.FontWeight.BOLD)
 
-        # Footer
-        footer = tk.Label(
-            root,
-            text="Powered by KD | Publisher: Deva",
-            font=("Segoe UI", 9),
-            bg="#f5f5f5"
-        )
-        footer.pack(side="bottom", pady=8)
+input_box = ft.TextField(
+    multiline=True,
+    min_lines=6,
+    max_lines=10,
+    label="Enter Raw Data",
+    expand=True,
+)
 
-    def analyze(self):
-        raw_text = self.input_box.get("1.0", tk.END).strip()
-        if not raw_text:
-            messagebox.showerror("Error", "Please enter data")
-            return
+output_box = ft.TextField(
+    multiline=True,
+    min_lines=10,
+    max_lines=18,
+    label="Analyzed Output",
+    expand=True,
+    read_only=True
+)
 
-        self.output_box.delete("1.0", tk.END)
-        self.output_box.insert(tk.END, "Analyzing with AI...\n")
+status_text = ft.Text("Status: Idle", size=12)
 
-        try:
-            ai_result = ai_analyze(raw_text)
-            self.structured_data = json.loads(ai_result)
+def analyze_click(e):
+    nonlocal structured_data
+    raw_text = input_box.value
+    if not raw_text:
+        page.snack_bar = ft.SnackBar(ft.Text("Please enter data"))
+        page.snack_bar.open = True
+        page.update()
+        return
 
-            self.output_box.delete("1.0", tk.END)
+    status_text.value = "Status: Analyzing..."
+    page.update()
 
-            for k, v in self.structured_data.items():
-                self.output_box.insert(tk.END, f"{k} : {v}\n")
+    try:
+        ai_result = ai_analyze(raw_text)
+        start = ai_result.find("{")
+        end = ai_result.rfind("}") + 1
+        clean_json = ai_result[start:end]
+        structured_data = json.loads(clean_json)
 
-        except Exception as e:
-            self.output_box.delete("1.0", tk.END)
-            self.output_box.insert(tk.END, f"AI Error:\n{str(e)}")
+        output = ""
+        for k, v in structured_data.items():
+            output += f"{k}: {v}\n"
 
-    def export_excel(self):
-        if not self.structured_data:
-            messagebox.showerror("Error", "No analyzed data to export")
-            return
+        output_box.value = output
+        status_text.value = "Status: Analysis completed"
 
-        file_path = filedialog.asksaveasfilename(defaultextension=".xlsx")
-        if not file_path:
-            return
+    except Exception as err:
+        output_box.value = f"AI Error: {str(err)}"
+        status_text.value = "Status: Error"
 
-        df = pd.DataFrame([self.structured_data])
-        df.to_excel(file_path, index=False)
+    page.update()
 
-        messagebox.showinfo("Success", "Excel exported successfully")
+def export_excel(e):
+    if not structured_data:
+        page.snack_bar = ft.SnackBar(ft.Text("No analyzed data"))
+        page.snack_bar.open = True
+        page.update()
+        return
 
-# ================= RUN =================
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = AIDataEntryApp(root)
-    root.mainloop()
+    df = pd.DataFrame([structured_data])
+    file_name = "ai_data_output.xlsx"
+    df.to_excel(file_name, index=False)
+
+    page.snack_bar = ft.SnackBar(ft.Text(f"Excel saved: {file_name}"))
+    page.snack_bar.open = True
+    page.update()
+
+analyze_btn = ft.ElevatedButton("Analyze Data", icon=ft.icons.AUTO_FIX_HIGH, on_click=analyze_click)
+save_btn = ft.ElevatedButton("Save to Excel", icon=ft.icons.SAVE, on_click=export_excel)
+
+btn_row = ft.Row([analyze_btn, save_btn], alignment=ft.MainAxisAlignment.CENTER)
+
+layout = ft.Column([
+    title,
+    ft.Divider(),
+    input_box,
+    btn_row,
+    ft.Divider(),
+    output_box,
+    status_text
+], expand=True, spacing=15)
+
+page.add(layout)
+
+================= RUN =================
+
+ft.app(target=main)
