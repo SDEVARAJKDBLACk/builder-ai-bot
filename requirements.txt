@@ -1,7 +1,7 @@
 google-generativeai
 pytesseract
 Pillow
-spacy
+spacy==3.7.4
 pandas
 openpyxl
 python-docx
