@@ -1,6 +1,7 @@
 import flet as ft
 import os
 import json
+import spacy
 import pandas as pd
 import pytesseract
 from PIL import Image
