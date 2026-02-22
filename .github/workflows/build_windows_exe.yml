@@ -1,4 +1,4 @@
-name: Build Windows EXE with Flet
+name: Build Windows EXE
 
 on:
   push:
@@ -24,7 +24,7 @@ jobs:
 
     - name: Build EXE with PyInstaller
       run: |
-        # Indha --collect-all flags thaan model-ah EXE kulla lock pannum
+        # Use --collect-all to force model bundling into the EXE
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
 
     - name: Upload EXE Artifact
