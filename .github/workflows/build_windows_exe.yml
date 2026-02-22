@@ -24,8 +24,8 @@ jobs:
         # INDHA LINE-AH KANDIPPA ADD PANNUMGA
         python -m spacy download en_core_web_sm
 
-        - name: Build EXE with PyInstaller
-        run: |
+    - name: Build EXE with PyInstaller
+      run: |
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
 
     - name: Upload EXE Artifact
