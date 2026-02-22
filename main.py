@@ -9,22 +9,24 @@ import PyPDF2
 import google.generativeai as genai
 from datetime import datetime
 import asyncio
-[span_2](start_span)import spacy  # FIX: This line was missing[span_2](end_span)
+import spacy
 
 # Gemini API Setup
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")) 
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Offline NLP Setup Fix - Supports EXE bundling
+# Offline NLP Setup Fix
 nlp = None
 try:
+    # First try loading as a package
     import en_core_web_sm
     nlp = en_core_web_sm.load()
-except ImportError:
+except Exception:
     try:
+        # Then try loading via spacy string
         nlp = spacy.load("en_core_web_sm")
     except Exception as e:
-        print(f"NLP Model loading failed: {e}")
+        print(f"NLP Model not found, but continuing: {e}")
 
 CORE_FIELDS = [
     "name", "age", "gender", "phone", "alternate_phone", "email", 
@@ -114,3 +116,4 @@ async def main(page: ft.Page):
 
 if __name__ == "__main__":
     ft.app(target=main)
+                
