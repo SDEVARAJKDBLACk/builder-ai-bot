@@ -9,13 +9,14 @@ import PyPDF2
 import google.generativeai as genai
 from datetime import datetime
 import asyncio
-[span_1](start_span)import spacy  # MUKKIYAM: Indha line missing-ala thaan 'NameError' vandhuchu[span_1](end_span)
+[span_2](start_span)import spacy  # FIX: This line was missing[span_2](end_span)
 
 # Gemini API Setup
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")) 
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Offline NLP Setup Fix
+# Offline NLP Setup Fix - Supports EXE bundling
+nlp = None
 try:
     import en_core_web_sm
     nlp = en_core_web_sm.load()
@@ -23,8 +24,7 @@ except ImportError:
     try:
         nlp = spacy.load("en_core_web_sm")
     except Exception as e:
-        print(f"NLP Model Load Error: {e}")
-        nlp = None
+        print(f"NLP Model loading failed: {e}")
 
 CORE_FIELDS = [
     "name", "age", "gender", "phone", "alternate_phone", "email", 
@@ -32,9 +32,6 @@ CORE_FIELDS = [
     "company", "designation", "qualification", "id_number", 
     "reference_name", "notes", "source", "custom_field"
 ]
-
-# ... (matha processor class matrum Flet UI code apdiye irukatum)
-
 
 class AIDataEntryProcessor:
     def __init__(self):
