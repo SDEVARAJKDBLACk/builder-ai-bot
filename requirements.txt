@@ -2,7 +2,6 @@ google-generativeai
 pytesseract
 Pillow
 spacy==3.7.4
-en_core_web_sm
 pandas
 openpyxl
 python-docx
