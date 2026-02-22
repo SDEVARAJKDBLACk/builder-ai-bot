@@ -21,11 +21,14 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
+        # INDHA LINE-AH KANDIPPA ADD PANNUMGA
+        python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        pyinstaller --noconfirm --onefile --windowed --hidden-import="spacy" --collect-all spacy main.py
-        
+        # Inga dhaan neenga mela sonna 'collect-all' command-ah add pannanum
+        pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
+
     - name: Upload EXE Artifact
       uses: actions/upload-artifact@v4
       with:
