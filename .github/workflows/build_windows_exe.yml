@@ -20,12 +20,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
-        # GitHub machine-la model-ah download panna indha line mukkiyam
-        python -m spacy download en_core_web_sm
+      
 
     - name: Build EXE with PyInstaller
       run: |
-        # Indha line-ah check pannunga, full-ah irukkanum (cut aagalaama)
+        
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
 
     - name: Upload EXE Artifact
