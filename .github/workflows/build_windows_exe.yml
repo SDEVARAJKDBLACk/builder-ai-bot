@@ -1,4 +1,4 @@
-name: Build Windows EXE
+name: Build Windows EXE with Flet
 
 on:
   push:
@@ -20,12 +20,11 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
-        # Manually download the model in GitHub environment
         python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        # Using --collect-all ensures spaCy and its model are included in the EXE
+        # Indha --collect-all flags thaan model-ah EXE kulla lock pannum
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
 
     - name: Upload EXE Artifact
