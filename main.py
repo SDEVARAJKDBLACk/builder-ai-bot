@@ -9,22 +9,26 @@ import PyPDF2
 import google.generativeai as genai
 from datetime import datetime
 import asyncio 
-import spacy
-import en_core_web_sm  # EXE-kulla model crct-a load aaga idhu mukkiyam
+import spacy # Added missing import
 
 # Gemini API Setup
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")) 
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Offline NLP Setup Fix
+# Offline NLP Setup Fix - Supports EXE bundling
+nlp = None
 try:
+    # Try loading directly if bundled
+    import en_core_web_sm
     nlp = en_core_web_sm.load()
-except Exception:
+except ImportError:
+    # Fallback for local development
     try:
         nlp = spacy.load("en_core_web_sm")
     except:
-        os.system("python -m spacy download en_core_web_sm")
-        nlp = spacy.load("en_core_web_sm")
+        print("NLP Model not found. Basic extraction will continue.")
+
+# ... (Rest of your AIDataEntryProcessor class and Flet UI code remains the same as your original file)
 
 CORE_FIELDS = [
     "name", "age", "gender", "phone", "alternate_phone", "email", 
