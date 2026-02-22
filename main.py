@@ -21,15 +21,14 @@ import asyncio # For async operations in Flet
 genai.configure(api_key=os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")) 
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Offline NLP Setup
 try:
     import en_core_web_sm
     nlp = en_core_web_sm.load()
-except ImportWarning:
-    # Model missing-ah iruntha download panna try pannum
-    os.system("python -m spacy download en_core_web_sm")
-    import en_core_web_sm
-    nlp = en_core_web_sm.load()
+except Exception:
+    # If package import fails, try the string load
+    import spacy
+    nlp = spacy.load("en_core_web_sm")
+    
     
 
 # --- CORE AI DATA ENTRY LOGIC ---
