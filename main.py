@@ -11,22 +11,33 @@ from datetime import datetime
 import asyncio
 import spacy
 import en_core_web_sm
+import sys
 
-# 1. Gemini API Setup
-# GitHub Secrets-la 'GEMINI_API_KEY' nu save panni vaiyunga
+# 1. EXE kulla model path-ah kandupidikka indha logic venum
+def get_model_path():
+    if getattr(sys, 'frozen', False):
+        base_path = sys._MEIPASS
+        # EXE kulla spaCy model indha folder-la thaan bundle aagi irukkum
+        return os.path.join(base_path, "en_core_web_sm")
+    return "en_core_web_sm"
+
+# 2. Offline NLP Setup - Indha oru block mattum podhum
+nlp = None
+try:
+    # First, internal bundle-la irundhu load panna try pannum
+    model_path = get_model_path()
+    nlp = spacy.load(model_path)
+except Exception:
+    try:
+        # Fallback: direct import load
+        nlp = en_core_web_sm.load()
+    except Exception as e:
+        print(f"NLP Model loading failed: {e}")
+
+# 3. Gemini API Setup
 API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
-
-# 2. Offline NLP (spaCy) Setup - EXE bundling fix
-nlp = None
-try:
-    nlp = en_core_web_sm.load()
-except Exception:
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except Exception as e:
-        print(f"NLP Model not found: {e}")
 
 CORE_FIELDS = [
     "name", "age", "gender", "phone", "alternate_phone", "email", 
