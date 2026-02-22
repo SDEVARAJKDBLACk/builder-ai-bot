@@ -15,21 +15,22 @@ jobs:
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
-        # Indha vari thaan spaCy model-ah external-aa install pannum
+        # Indha line thaan mukkkiyam, model-ah external-ah download panni install pannum
         python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        # '--collect-all' flags kandippa irukkanum, appo thaan model EXE kulla pack aagum
+        # '--collect-all' flags thaan model data-vah unga EXE kulla bundle pannum
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
-        
 
     - name: Upload EXE Artifact
       uses: actions/upload-artifact@v4
       with:
         name: DataEntryAI-App
         path: dist/main.exe
+        
