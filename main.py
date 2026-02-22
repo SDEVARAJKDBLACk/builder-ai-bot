@@ -23,12 +23,14 @@ model = genai.GenerativeModel('gemini-1.5-flash')
 
 # Offline NLP Setup
 try:
-    nlp = spacy.load("en_core_web_sm")
-except:
-    # Ensure spaCy model is downloaded if not present
-    print("Downloading spaCy model 'en_core_web_sm'...")
+    import en_core_web_sm
+    nlp = en_core_web_sm.load()
+except ImportWarning:
+    # Model missing-ah iruntha download panna try pannum
     os.system("python -m spacy download en_core_web_sm")
-    nlp = spacy.load("en_core_web_sm")
+    import en_core_web_sm
+    nlp = en_core_web_sm.load()
+    
 
 # --- CORE AI DATA ENTRY LOGIC ---
 CORE_FIELDS = [
