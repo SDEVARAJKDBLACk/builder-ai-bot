@@ -1,10 +1,9 @@
+flet
+spacy
 google-generativeai
+pandas
 pytesseract
 Pillow
-spacy==3.7.4
-pandas
-openpyxl
 python-docx
 PyPDF2
 pyinstaller
-flet
