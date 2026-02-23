@@ -20,12 +20,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
-        # Model-ah install panni force-aa EXE kulla pack panna ithu mukkiyam
+        # Indha step dhaan model-ah external-ah download panni install pannum
         python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        # '--collect-submodules' matrum '--collect-data' add panni irukkaen
+        # Indha command-la model-ah bundle panna extra flags add panni irukkaen
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm --collect-submodules en_core_web_sm main.py
 
     - name: Upload EXE Artifact
