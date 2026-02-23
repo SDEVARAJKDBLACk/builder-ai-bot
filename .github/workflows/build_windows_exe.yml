@@ -20,12 +20,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
-        # Model-ah install panna official command
+        # Indha step dhaan 404 error illaama model-ah sariyaa download pannum
         python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        # Indha flags dhaan model data-vah unga EXE kulla bundle pannum
+        # Indha command sariyaa bundle panna help pannum
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm main.py
 
     - name: Upload EXE Artifact
