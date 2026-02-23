@@ -10,31 +10,25 @@ import google.generativeai as genai
 from datetime import datetime
 import asyncio
 import spacy
-import en_core_web_sm
 import sys
+import subprocess
 
-# 1. EXE kulla model path-ah kandupidikka indha logic venum
-def get_model_path():
-    if getattr(sys, 'frozen', False):
-        base_path = sys._MEIPASS
-        # EXE kulla spaCy model indha folder-la thaan bundle aagi irukkum
-        return os.path.join(base_path, "en_core_web_sm")
-    return "en_core_web_sm"
-
-# 2. Offline NLP Setup - Indha oru block mattum podhum
-nlp = None
-try:
-    # First, internal bundle-la irundhu load panna try pannum
-    model_path = get_model_path()
-    nlp = spacy.load(model_path)
-except Exception:
+# 1. AI Model Online Download Logic
+def load_nlp_model():
+    model_name = "en_core_web_sm"
     try:
-        # Fallback: direct import load
-        nlp = en_core_web_sm.load()
-    except Exception as e:
-        print(f"NLP Model loading failed: {e}")
+        # Check if already installed
+        return spacy.load(model_name)
+    except Exception:
+        print("Model not found. Downloading from internet...")
+        # Internet-la irundhu download panna command
+        subprocess.check_call([sys.executable, "-m", "spacy", "download", model_name])
+        return spacy.load(model_name)
 
-# 3. Gemini API Setup
+# Model load pannunga - Indha oru line mattum podhum
+nlp = load_nlp_model()
+
+# 2. Gemini API Setup
 API_KEY = os.environ.get("GEMINI_API_KEY", "YOUR_GEMINI_API_KEY_HERE")
 genai.configure(api_key=API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
@@ -45,6 +39,8 @@ CORE_FIELDS = [
     "company", "designation", "qualification", "id_number", 
     "reference_name", "notes", "source", "custom_field"
 ]
+
+# ... (Unga matha AIDataEntryProcessor class matrum main function code-ah continuation-ah paste pannunga)
 
 class AIDataEntryProcessor:
     def __init__(self):
