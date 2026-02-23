@@ -19,13 +19,14 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip setuptools wheel
+        # requirements.txt-la irukkuradha mattum install pannum
         pip install -r requirements.txt
-        # Indha step dhaan model-ah external-ah download panni install pannum
+        # Indha line thaan spaCy model-ah official source-la irundhu external-ah edukum
         python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        # Indha command-la model-ah bundle panna extra flags add panni irukkaen
+        # Indha flags dhaan model-ah EXE kulla lock panni bundle pannum
         pyinstaller --noconfirm --onefile --windowed --collect-all spacy --collect-all en_core_web_sm --collect-submodules en_core_web_sm main.py
 
     - name: Upload EXE Artifact
