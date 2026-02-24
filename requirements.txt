@@ -1,4 +1,4 @@
-flet
+flet[desktop]
 spacy
 google-generativeai
 pandas
@@ -6,4 +6,5 @@ pytesseract
 Pillow
 python-docx
 PyPDF2
+openpyxl
 pyinstaller
