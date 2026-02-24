@@ -20,13 +20,12 @@ jobs:
       run: |
         python -m pip install --upgrade pip setuptools wheel
         pip install -r requirements.txt
-        # Indha line dhaan desktop component-ah force-aa install pannum
-        pip install "flet[desktop]"
+        # Model-ah official source-la irundhu download pannum
         python -m spacy download en_core_web_sm
 
     - name: Build EXE with PyInstaller
       run: |
-        # '--collect-all flet' add panni irukkaen so bundle aagum
+        # '--collect-all flet' dhaan desktop components-ah bundle pannum
         pyinstaller --noconfirm --onefile --windowed --collect-all flet --collect-all spacy --collect-all en_core_web_sm main.py
 
     - name: Upload EXE Artifact
